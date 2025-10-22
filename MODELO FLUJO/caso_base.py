@@ -8,7 +8,6 @@ class EmbalseCasoBase:
     def __init__(self):
         self.model = gp.Model("Embalse_Caso_Base")
 
-        # Conjuntos
         self.anos = ['1989/1990', '1990/1991', '1991/1992', '1992/1993', '1993/1994',
                      '1994/1995', '1995/1996', '1996/1997', '1997/1998', '1998/1999',
                      '1999/2000', '2000/2001', '2001/2002', '2002/2003', '2003/2004',
@@ -39,7 +38,6 @@ class EmbalseCasoBase:
         self.Q_hoya2 = {}
         self.Q_hoya3 = {}
 
-        # Parametros
         self.num_A = 21221
         self.num_B = 7100
         self.DA_a_m = {1:9503,2:6516,3:3452,4:776,5:0,6:0,7:0,8:0,9:0,10:2444,11:6516,12:9580}
@@ -47,38 +45,32 @@ class EmbalseCasoBase:
 
         self.m_mayo_abril_normal = {1:5,2:6,3:7,4:8,5:9,6:10,7:11,8:12,9:1,10:2,11:3,12:4}
 
-        # ssr
         self.V_C_H = 3.9
-        self.arreglo_ssr_mensual = False
+        self.arreglo_ssr_mensual = True
         self.ssr_frac = {1:0.10,2:0.10,3:0.15,4:0.20,5:0.15,6:0.10,7:0.10,8:0.05,9:0.0,10:0.0,11:0.0,12:0.05}
-        self.dem_mensual_humana = None
 
-    # Variables 
     def setup_variables(self):
         m = self.model
         
         self.V_TOTAL = m.addVars(self.anos, self.meses, name="V_TOTAL", lb=0, ub=self.C_TOTAL)
-
         self.IN_TOTAL = m.addVars(self.anos, self.meses, name="IN_TOTAL", lb=0)
         self.E_TOT = m.addVars(self.anos, self.meses, name="E_TOT", lb=0)
-        # SSR
+
         self.Q_ch = m.addVars(self.anos, self.meses, name="Q_ch", lb=0)   
         self.Q_DEM = m.addVars(self.anos, self.meses, name="Q_DEM", lb=0) 
 
-        # Deficits
         self.d_TOTAL = m.addVars(self.anos, self.meses, name="d_TOTAL", lb=0)
-
-        # Turbinado
         self.Q_turb = m.addVars(self.anos, self.meses, name="Q_turb", lb=0)
-
         self.Q_dis = m.addVars(self.anos, self.meses, name="Q_dis", lb=0)
 
-        # Auxiliares
         self.Rem = m.addVars(self.anos, self.meses, name="Rem", lb=0)
-        self.HeadT = m.addVars(self.anos, self.meses, name="HeadT", lb=0)
-        self.FillT = m.addVars(self.anos, self.meses, name="FillT", lb=0)
+        self.TopeM = m.addVars(self.anos, self.meses, name="TopeM", lb=0)
+        self.LlenadoT = m.addVars(self.anos, self.meses, name="LlenadoT", lb=0)
 
-    # Datos 
+        self.SSR_EXIG = m.addVars(self.anos, self.meses, name="SSR_EXIG", lb=0)
+        self.SSR_ACUM = m.addVars(self.anos, self.meses, name="SSR_ACUM", lb=0)
+        self.SSR_CAPVAR = m.addVars(self.anos, self.meses, name="SSR_CAPVAR", lb=0)
+
     def cargar_caudales(self, file_path):
         xls = pd.ExcelFile(file_path)
         nuble = pd.read_excel(xls, sheet_name='Hoja1', skiprows=4,  nrows=31)
@@ -96,19 +88,18 @@ class EmbalseCasoBase:
             if (pd.notna(fila.get('AÑO')) and '/' in ano_str
                 and not any(w in ano_str.upper() for w in ['PROMEDIO','TOTAL','MAX','MIN'])):
                 try:
-                    year = int(ano_str.split('/')[0])
+                    ano = int(ano_str.split('/')[0])
                     for col, mm in zip(excel_col_nombres, model_mes_orden):
                         n1 = nuble.loc[idx, col]; h1 = hoya1.loc[idx, col]
                         h2 = hoya2.loc[idx, col]; h3 = hoya3.loc[idx, col]
-                        if pd.notna(n1): Q_nuble[year, mm] = float(n1); Q_afl[year, mm] = float(n1)
-                        if pd.notna(h1): Q_hoya1[year, mm] = float(h1)
-                        if pd.notna(h2): Q_hoya2[year, mm] = float(h2)
-                        if pd.notna(h3): Q_hoya3[year, mm] = float(h3)
+                        if pd.notna(n1): Q_nuble[ano, mm] = float(n1); Q_afl[ano, mm] = float(n1)
+                        if pd.notna(h1): Q_hoya1[ano, mm] = float(h1)
+                        if pd.notna(h2): Q_hoya2[ano, mm] = float(h2)
+                        if pd.notna(h3): Q_hoya3[ano, mm] = float(h3)
                 except Exception:
                     pass
         return Q_afl, Q_nuble, Q_hoya1, Q_hoya2, Q_hoya3
 
-    # Restricciones 
     def setup_restricciones(self):
         m = self.model
         data_file = "data/caudales.xlsx"
@@ -127,8 +118,7 @@ class EmbalseCasoBase:
         primer = self.anos[0]
         m.addConstr(self.V_TOTAL[primer,1] == 0, name="init_TOTAL")
 
-
-        self.dem_mensual_humana = self.V_C_H / 12.0
+        ssr_mes = self.V_C_H / 12.0
 
         for año in self.anos:
             y = int(año.split('/')[0])
@@ -138,63 +128,51 @@ class EmbalseCasoBase:
                 Qin = Qin_s * seg / 1_000_000.0
                 UPREF = self.QPD_eff[año, mes] * seg / 1_000_000.0
 
-                demTOTAL = self.dem_mensual_humana
+                demTOTAL = ((self.DA_a_m.get(mes, 0.0) * self.num_A) + (self.DB_a_b.get(mes, 0.0) * self.num_B)) / 1_000_000.0
 
                 if i == 0:
                     prev_año = f"{y-1}/{y}"
                     V_prev = self.V_TOTAL[prev_año,12] if prev_año in self.anos else 0
+                    backlog_prev = self.SSR_ACUM[prev_año,12] if prev_año in self.anos else m.addVar(lb=0.0, ub=0.0, name=f"SSR_ACUM_prev0_{año}")
                 else:
                     V_prev = self.V_TOTAL[año, mes-1]
+                    backlog_prev = self.SSR_ACUM[año, mes-1]
 
                 m.addConstr(self.Rem[año,mes] == Qin - UPREF, name=f"rem_{año}_{mes}")
-                
-                m.addConstr(self.HeadT[año,mes] == self.C_TOTAL - V_prev, name=f"headT_{año}_{mes}")
-                
-                m.addGenConstrMin(self.FillT[año,mes], [self.Rem[año,mes], self.HeadT[año,mes]], 
-                                 name=f"fillT_min_{año}_{mes}")
-                m.addConstr(self.IN_TOTAL[año,mes] == self.FillT[año,mes], name=f"in_total_{año}_{mes}")
-
-                m.addConstr(self.E_TOT[año,mes] == self.Rem[año,mes] - self.IN_TOTAL[año,mes],
-                           name=f"spill_{año}_{mes}")
-
+                m.addConstr(self.TopeM[año,mes] == self.C_TOTAL - V_prev, name=f"TopeM_{año}_{mes}")
+                m.addGenConstrMin(self.LlenadoT[año,mes], [self.Rem[año,mes], self.TopeM[año,mes]], name=f"llenadoT_min_{año}_{mes}")
+                m.addConstr(self.IN_TOTAL[año,mes] == self.LlenadoT[año,mes], name=f"in_total_{año}_{mes}")
+                m.addConstr(self.E_TOT[año,mes] == self.Rem[año,mes] - self.IN_TOTAL[año,mes], name=f"perdidas_{año}_{mes}")
                 m.addConstr(self.Q_dis[año,mes] == Qin - UPREF, name=f"qdis_{año}_{mes}")
 
-                m.addConstr(
-                    self.V_TOTAL[año,mes] == V_prev + self.IN_TOTAL[año,mes] - self.Q_DEM[año,mes] - self.Q_ch[año,mes],
-                    name=f"bal_total_{año}_{mes}"
-                )
-                
-                m.addConstr(self.V_TOTAL[año,mes] <= self.C_TOTAL, name=f"cap_total_{año}_{mes}")
+                m.addConstr(self.SSR_EXIG[año, mes] == ssr_mes + backlog_prev, name=f"ssr_exig_{año}_{mes}")
+                m.addConstr(self.SSR_CAPVAR[año, mes] == V_prev + self.IN_TOTAL[año,mes], name=f"ssr_cap_{año}_{mes}")
+                m.addGenConstrMin(self.Q_ch[año, mes], [self.SSR_EXIG[año, mes], self.SSR_CAPVAR[año, mes]], name=f"ssr_pago_{año}_{mes}")
+                m.addConstr(self.SSR_ACUM[año, mes] == self.SSR_EXIG[año, mes] - self.Q_ch[año, mes], name=f"ssr_acum_{año}_{mes}")
 
-                m.addConstr(self.Q_DEM[año,mes] <= V_prev + self.IN_TOTAL[año,mes], name=f"disp_dem_{año}_{mes}")
-                
-                m.addConstr(self.Q_ch[año,mes] <= V_prev + self.IN_TOTAL[año,mes], name=f"disp_ch_{año}_{mes}")
-
+                m.addConstr(self.Q_DEM[año,mes] <= V_prev + self.IN_TOTAL[año,mes] - self.Q_ch[año,mes] + 1e-9, name=f"disp_dem_post_ssr_{año}_{mes}")
                 m.addConstr(self.Q_DEM[año,mes] <= demTOTAL + 1e-9, name=f"nosobre_dem_{año}_{mes}")
-
                 m.addConstr(self.d_TOTAL[año,mes] == demTOTAL - self.Q_DEM[año,mes], name=f"def_total_{año}_{mes}")
 
-                m.addConstr(self.Q_turb[año,mes] == self.Q_DEM[año,mes] + self.E_TOT[año,mes],
-                           name=f"turb_{año}_{mes}")
+                m.addConstr(self.V_TOTAL[año,mes] == V_prev + self.IN_TOTAL[año,mes] - self.Q_DEM[año,mes] - self.Q_ch[año,mes], name=f"bal_total_{año}_{mes}")
+                m.addConstr(self.V_TOTAL[año,mes] <= self.C_TOTAL, name=f"cap_total_{año}_{mes}")
+
+                m.addConstr(self.Q_turb[año,mes] == self.Q_DEM[año,mes] + self.E_TOT[año,mes], name=f"turb_{año}_{mes}")
 
         if self.arreglo_ssr_mensual:
             for año in self.anos:
                 for mes in self.meses:
-                    m.addConstr(self.Q_ch[año, mes] == self.V_C_H * float(self.ssr_frac.get(mes, 0.0)),
-                               name=f"ssr_mes_{año}_{mes}")
+                    pass
         else:
             for año in self.anos:
-                m.addConstr(gp.quicksum(self.Q_ch[año, mes] for mes in self.meses) == self.V_C_H,
-                           name=f"ssr_anual_{año}")
+                m.addConstr(gp.quicksum(self.Q_ch[año, mes] for mes in self.meses) == self.V_C_H, name=f"ssr_anual_{año}")
 
     def set_objective(self):
-        """ Minimiza déficit total """
         total_def = gp.quicksum(self.d_TOTAL[año,mes] for año in self.anos for mes in self.meses)
         self.model.setObjective(total_def, GRB.MINIMIZE)
 
     def exportar_a_excel(self, filename="resultados_caso_base.xlsx"):
         data = []
-        dem_mes = self.dem_mensual_humana if self.dem_mensual_humana is not None else 0.0
 
         for año in self.anos:
             y = int(año.split('/')[0])
@@ -203,8 +181,7 @@ class EmbalseCasoBase:
                 Qin_m3s = self.inflow.get((y,mes), 0.0)
                 Qin = Qin_m3s * seg / 1_000_000.0
                 QPD_eff_Hm3 = self.QPD_eff[año,mes] * seg / 1_000_000.0
-
-                demTOTAL = dem_mes
+                demTOTAL = ((self.DA_a_m.get(mes, 0.0) * self.num_A) + (self.DB_a_b.get(mes, 0.0) * self.num_B)) / 1_000_000.0
 
                 fila = {
                     'Año': año, 'Mes': mes,
@@ -221,7 +198,7 @@ class EmbalseCasoBase:
                     'Q_afl_m3s': Qin_m3s,
                     'Q_afl_Hm3': Qin,
                     'Rem': self.Rem[año,mes].X,
-                    'FillT': self.FillT[año,mes].X
+                    'LlenadoT': self.LlenadoT[año,mes].X
                 }
                 
                 servTOTAL = fila['Q_DEM']
@@ -239,8 +216,7 @@ class EmbalseCasoBase:
                 'Volumen_Turbinado_Anual': d['Q_turb'].sum(),
                 'Demanda_Total_Anual': d['Demanda_Total'].sum(),
                 'Satisfaccion_Promedio': d['Satisfaccion_Total'].mean(),
-                'Mes_Mayor_Deficit': (d.loc[d['Deficit_Total'].idxmax(),'Mes'] 
-                                    if d['Deficit_Total'].max()>0 else 'Ninguno')
+                'Mes_Mayor_Deficit': (d.loc[d['Deficit_Total'].idxmax(),'Mes'] if d['Deficit_Total'].max()>0 else 'Ninguno')
             })
         df_res = pd.DataFrame(resumen)
         
@@ -260,8 +236,6 @@ class EmbalseCasoBase:
 
         mes_tag = {1:'may',2:'jun',3:'jul',4:'ago',5:'sep',6:'oct',7:'nov',8:'dic',9:'ene',10:'feb',11:'mar',12:'abr'}
         lines = []
-
-        dem_mes = self.dem_mensual_humana if self.dem_mensual_humana is not None else 0.0
 
         for año in self.anos:
             y = int(año.split('/')[0])
@@ -307,8 +281,7 @@ class EmbalseCasoBase:
             lines.append("-"*70)
 
             for i, mes in enumerate(self.meses):
-                demTOTAL = dem_mes
-
+                demTOTAL = ((self.DA_a_m.get(mes, 0.0) * self.num_A) + (self.DB_a_b.get(mes, 0.0) * self.num_B)) / 1_000_000.0
                 servicio = self.Q_DEM[año, mes].X
                 deficit = self.d_TOTAL[año, mes].X
                 Q_SSR = self.Q_ch[año, mes].X
@@ -341,7 +314,6 @@ class EmbalseCasoBase:
                 print(f"   - Tiempo de resolucion: {self.model.Runtime:.2f} segundos")
                 print(f"   - Gap de optimalidad: {self.model.MIPGap * 100:.6f}%")
                 print(f"   - Nodos explorados: {self.model.NodeCount}")
-                
                 return self.get_solution()
             print(f"Modelo no resuelto optimalmente. Status: {self.model.status}")
             return None
@@ -360,16 +332,14 @@ class EmbalseCasoBase:
 
 
 if __name__ == "__main__":
-    print("🚀 Iniciando modelo de caso base...")
+    print("Iniciando modelo de caso base...")
     modelo = EmbalseCasoBase()
     solucion = modelo.solve()
-    
     if solucion:
         print("Modelo resuelto exitosamente!")
         print(f"Valor objetivo: {solucion['obj_val']:.4f}")
         print(f"Archivos generados:")
         print(f"   - Excel: resultados_caso_base.xlsx")
         print(f"   - TXT: reporte_caso_base.txt")
-
     else:
         print("Error al resolver el modelo")

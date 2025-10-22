@@ -16,7 +16,7 @@ def main():
         df_resumen = solucion['df_resumen']
         print("\n RESUMEN ANUAL:")
         for _, row in df_resumen.iterrows():
-            print(f"  {row['Año']}: Déficit {row['Deficit_Total_Anual']:.1f} Hm³ - Satisfacción {row['Satisfaccion_Promedio']:.1f}%")
+            print(f"  {row['Ano']}: Déficit {row['Deficit_Total_Anual']:.1f} Hm³ - Satisfacción {row['Satisfaccion_Promedio']:.1f}%")
             
     else:
         print(" Error al resolver el modelo")
