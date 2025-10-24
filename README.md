@@ -39,7 +39,7 @@ Capstone_Limpio/
     ├── main_modelito2.py              # Script para correr Modelo principal 
     ├── monte_carlo.py                 # Simulaciones Monte Carlo
     ├── config/
-    │   └── config.yaml                # Parámetros de configuración
+    │   └── config.yaml                # algunos parametros, lo utilizamos al principio para tenerlos a mano
     ├── data/                          # Datos de entrada
     │   └── caudales.xlsx              
     ├── model/
