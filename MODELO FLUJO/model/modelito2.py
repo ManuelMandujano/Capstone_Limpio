@@ -413,7 +413,7 @@ class EmbalseNuevaPunilla:
                 m.addConstr(self.Q_A_apoyo[ano, mes] + self.Q_B_apoyo[ano, mes] <= self.VRFI_DISPONIBLE_LIBRE[ano, mes],
                             name=f"APOYO_SUMA_LE_VRFI_{ano}_{mes}")
 
-                # (10) BALANCES de stocks al final del mes
+                #  BALANCEs al final del mes, igual que el informe
                 m.addConstr(self.V_VRFI[ano, mes] ==
                             V_R_prev + self.IN_VRFI[ano, mes]
                             - self.Q_CONSUMO_HUMANO[ano, mes]
@@ -425,9 +425,9 @@ class EmbalseNuevaPunilla:
                             name=f"BAL_VB_{ano}_{mes}")    # Balance B (propio)
 
                 # (11) Límite de capacidad de cada embalse (seguridad)
-                m.addConstr(self.V_VRFI[ano, mes] <= self.C_VRFI,   name=f"CAP_VRFI_{ano}_{mes}")  # Capacidad VRFI
-                m.addConstr(self.V_A[ano, mes]    <= self.C_TIPO_A, name=f"CAP_VA_{ano}_{mes}")    # Capacidad A
-                m.addConstr(self.V_B[ano, mes]    <= self.C_TIPO_B, name=f"CAP_VB_{ano}_{mes}")    # Capacidad B
+                m.addConstr(self.V_VRFI[ano, mes] <= self.C_VRFI,   name=f"CAP_VRFI_{ano}_{mes}")  
+                m.addConstr(self.V_A[ano, mes]    <= self.C_TIPO_A, name=f"CAP_VA_{ano}_{mes}")    
+                m.addConstr(self.V_B[ano, mes]    <= self.C_TIPO_B, name=f"CAP_VB_{ano}_{mes}")    
 
                 # (12) Déficits mensuales (para la función objetivo) y no-sobre-servicio
                 m.addConstr(self.d_A[ano, mes] == demA - (self.Q_A[ano, mes] + self.Q_A_apoyo[ano, mes]),
