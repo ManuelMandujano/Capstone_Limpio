@@ -247,14 +247,14 @@ class EmbalseNuevaPunilla:
                     V_B_prev = self.V_B[ano,  mes-1]   
 
                 
-                # (1) REMANENTE después de QPD (puede ser negativo en bruto; luego se trunca en 0)
+                #  REMANENTE después de QPD 
                 m.addConstr(self.REMANENTE_BRUTO[ano, mes] == Qin - UPREF,
                             name=f"REMANENTE_BRUTO_{ano}_{mes}")  # Remanente bruto = Afluencia - QPD
                 m.addGenConstrMax(self.Rem[ano, mes],
                                 [self.REMANENTE_BRUTO[ano, mes], self.CERO_CONSTANTE],
-                                name=f"REMANENTE_clip0_{ano}_{mes}")  # Rem = max(Remanente_bruto, 0)
+                                name=f"REMANENTE_clip0_{ano}_{mes}")  # Rem = max(Remanente_bruto, 0) para que no sea negativo
 
-                # (1.1) ESPACIOS disponibles antes de llenar (capacidad - stock previo)
+                #  espacios de vol disponibles antes de llenar (capacidad - stock previo)
                 m.addConstr(self.ESPACIO_VRFI[ano, mes] == self.C_VRFI - V_R_prev,
                             name=f"ESPACIO_VRFI_{ano}_{mes}")  # Espacio en VRFI
                 m.addConstr(self.ESPACIO_A[ano, mes] == self.C_TIPO_A - V_A_prev,
