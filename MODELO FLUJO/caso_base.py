@@ -15,36 +15,46 @@ class EmbalseCasoBase:
                      '2009/2010', '2010/2011', '2011/2012', '2012/2013', '2013/2014',
                      '2014/2015', '2015/2016', '2016/2017', '2017/2018', '2018/2019']
         
-        self.meses = list(range(1, 13))  
-        self.C_TOTAL = 540  
+        # Meses del MODELO: 1..12 = mayo..abril
+        self.meses = list(range(1, 13))
+        self.C_TOTAL = 540  # Hm³
+
+        # Segundos por mes del MODELO (1=may, ..., 12=abr)
         self.segundos_por_mes = {
-            1: 31*24*3600,  
-            2: 30*24*3600,  
-            3: 31*24*3600,  
-            4: 31*24*3600,  
-            5: 30*24*3600,  
-            6: 31*24*3600,  
-            7: 30*24*3600,  
-            8: 31*24*3600,  
-            9: 31*24*3600,  
-            10: 28*24*3600, 
-            11: 31*24*3600, 
-            12: 30*24*3600  
+            1: 31*24*3600,  # may
+            2: 30*24*3600,  # jun
+            3: 31*24*3600,  # jul
+            4: 31*24*3600,  # ago
+            5: 30*24*3600,  # sep
+            6: 31*24*3600,  # oct
+            7: 30*24*3600,  # nov
+            8: 31*24*3600,  # dic
+            9: 31*24*3600,  # ene
+            10: 28*24*3600, # feb (28)
+            11: 31*24*3600, # mar
+            12: 30*24*3600  # abr
         }
 
+        # Datos hidrológicos
         self.inflow  = {}
         self.Q_nuble = {}
         self.Q_hoya1 = {}
         self.Q_hoya2 = {}
         self.Q_hoya3 = {}
 
+        # Acciones
         self.num_A = 21221
         self.num_B = 7100
+
+        # Demandas mensuales por acción (m³/mes por acción), indexadas por mes CALENDARIO (1=ene,...,12=dic)
         self.DA_a_m = {1:9503,2:6516,3:3452,4:776,5:0,6:0,7:0,8:0,9:0,10:2444,11:6516,12:9580}
         self.DB_a_b = {1:3361,2:2305,3:1221,4:274,5:0,6:0,7:0,8:0,9:0,10: 864,11:2305,12:3388}
 
+        # Mapeo de mes MODELO (may..abr) → mes CALENDARIO (ene..dic)
+        # 1=may→5, 2=jun→6, ..., 8=dic→12, 9=ene→1, ..., 12=abr→4
         self.m_mayo_abril_normal = {1:5,2:6,3:7,4:8,5:9,6:10,7:11,8:12,9:1,10:2,11:3,12:4}
 
+        # SSR
         self.V_C_H = 3.9
         self.arreglo_ssr_mensual = True
         self.ssr_frac = {1:0.10,2:0.10,3:0.15,4:0.20,5:0.15,6:0.10,7:0.10,8:0.05,9:0.0,10:0.0,11:0.0,12:0.05}
@@ -128,7 +138,11 @@ class EmbalseCasoBase:
                 Qin = Qin_s * seg / 1_000_000.0
                 UPREF = self.QPD_eff[año, mes] * seg / 1_000_000.0
 
-                demTOTAL = ((self.DA_a_m.get(mes, 0.0) * self.num_A) + (self.DB_a_b.get(mes, 0.0) * self.num_B)) / 1_000_000.0
+                # === Demanda mensual (A y B) en Hm³/mes — SIN multiplicar por seg ===
+                cal_m = self.m_mayo_abril_normal[mes]  # mes calendario 1..12
+                demA = self.DA_a_m.get(cal_m, 0.0) * self.num_A / 1_000_000.0  # Hm³/mes
+                demB = self.DB_a_b.get(cal_m, 0.0) * self.num_B / 1_000_000.0  # Hm³/mes
+                demTOTAL = demA + demB
 
                 if i == 0:
                     prev_año = f"{y-1}/{y}"
@@ -181,7 +195,12 @@ class EmbalseCasoBase:
                 Qin_m3s = self.inflow.get((y,mes), 0.0)
                 Qin = Qin_m3s * seg / 1_000_000.0
                 QPD_eff_Hm3 = self.QPD_eff[año,mes] * seg / 1_000_000.0
-                demTOTAL = ((self.DA_a_m.get(mes, 0.0) * self.num_A) + (self.DB_a_b.get(mes, 0.0) * self.num_B)) / 1_000_000.0
+
+                # Demanda mensual (Hm³/mes) usando mapeo calendario y SIN seg
+                cal_m = self.m_mayo_abril_normal[mes]
+                demA = self.DA_a_m.get(cal_m, 0.0) * self.num_A / 1_000_000.0
+                demB = self.DB_a_b.get(cal_m, 0.0) * self.num_B / 1_000_000.0
+                demTOTAL = demA + demB
 
                 fila = {
                     'Año': año, 'Mes': mes,
@@ -194,6 +213,8 @@ class EmbalseCasoBase:
                     'E_TOT': self.E_TOT[año,mes].X,
                     'd_TOTAL': self.d_TOTAL[año,mes].X,
                     'QPD_eff_Hm3': QPD_eff_Hm3,
+                    'DemA_Hm3': demA,
+                    'DemB_Hm3': demB,
                     'Demanda_Total': demTOTAL,
                     'Q_afl_m3s': Qin_m3s,
                     'Q_afl_Hm3': Qin,
@@ -237,6 +258,97 @@ class EmbalseCasoBase:
         mes_tag = {1:'may',2:'jun',3:'jul',4:'ago',5:'sep',6:'oct',7:'nov',8:'dic',9:'ene',10:'feb',11:'mar',12:'abr'}
         lines = []
 
+        # =========================
+        # 1) KPI AGREGADOS (30 AÑOS)
+        # =========================
+        NY = len(self.anos)
+        sum_q_turb_total = 0.0
+        sum_rebalse_total = 0.0
+        sum_qdis_total = 0.0
+
+        # Acumuladores mensuales para promedios
+        rebalse_m = {m: 0.0 for m in self.meses}
+        qdis_m = {m: 0.0 for m in self.meses}
+        serv_m = {m: 0.0 for m in self.meses}
+        dem_m = {m: 0.0 for m in self.meses}
+
+        # Para satisfacción ponderada global
+        servicio_total = 0.0
+        demanda_total = 0.0
+
+        for año in self.anos:
+            y = int(año.split('/')[0])
+            for mes in self.meses:
+                # Hidráulica
+                Qturb = self.Q_turb[año, mes].X
+                Reb = self.E_TOT[año, mes].X
+                Qdis = self.Q_dis[año, mes].X
+
+                sum_q_turb_total += Qturb
+                sum_rebalse_total += Reb
+                sum_qdis_total += Qdis
+
+                rebalse_m[mes] += Reb
+                qdis_m[mes] += Qdis
+
+                # Demanda y servicio del mes (en Hm³/mes)
+                cal_m = self.m_mayo_abril_normal[mes]
+                demA = self.DA_a_m.get(cal_m, 0.0) * self.num_A / 1_000_000.0
+                demB = self.DB_a_b.get(cal_m, 0.0) * self.num_B / 1_000_000.0
+                demT = demA + demB
+                serv = self.Q_DEM[año, mes].X
+
+                dem_m[mes] += demT
+                serv_m[mes] += serv
+
+                demanda_total += demT
+                servicio_total += serv
+
+        # KPIs globales
+        rebalse_prom_mensual_total = sum_rebalse_total / (NY * 12.0)
+        qdis_prom_mensual_total = sum_qdis_total / (NY * 12.0)
+        satisf_ponderada_global = (servicio_total / demanda_total * 100.0) if demanda_total > 0 else 100.0
+
+        # Último stock al final del último periodo (abril del último año)
+        ultimo_anio = self.anos[-1]
+        V_fin_total = self.V_TOTAL[ultimo_anio, 12].X  # 12 = abr (fin del ciclo mayo-abril)
+
+        # Encabezado KPI
+        lines.append("="*70)
+        lines.append("RESUMEN 30 AÑOS — AGREGADOS")
+        lines.append("="*70)
+        lines.append(f"Volumen turbinado TOTAL (30 años): {sum_q_turb_total:,.1f} Hm³")
+        lines.append(f"Rebalse TOTAL (30 años): {sum_rebalse_total:,.1f} Hm³")
+        lines.append(f"Rebalse PROMEDIO mensual (30 años): {rebalse_prom_mensual_total:,.2f} Hm³/mes")
+        lines.append(f"Caudal disponible PROMEDIO mensual (30 años): {qdis_prom_mensual_total:,.2f} Hm³/mes")
+        lines.append(f"Caudal disponible PROMEDIO (30 años): {qdis_prom_mensual_total:,.2f} Hm³/mes")
+        lines.append(f"Satisfaccion ponderada PROMEDIO (30 años):  {satisf_ponderada_global:6.2f}%")
+        lines.append("")
+        lines.append("Promedios mensuales sobre 30 años:")
+        lines.append("Mes   Rebalse prom [Hm³/mes]   Q_dis prom [Hm³/mes]   %Satisfaccion (ponderada)")
+        lines.append("-"*70)
+
+        for mes in self.meses:
+            reb_prom = rebalse_m[mes] / NY
+            qd_prom = qdis_m[mes] / NY
+            sat_m = (serv_m[mes] / dem_m[mes] * 100.0) if dem_m[mes] > 0 else 100.0
+            lines.append(f"{mes_tag[mes]:<4} {reb_prom:10.2f} {qd_prom:22.2f} {sat_m:22.2f}%")
+
+        lines.append("")
+        # Nota sobre A/B
+        lines.append("Agua almacenada al final de los 30 años (fin del último periodo):")
+        lines.append(f"  Embalse (V_TOTAL): {V_fin_total:.1f} Hm³")
+        lines.append("  (Este modelo no separa stocks A/B; se reporta el volumen total del embalse)")
+        lines.append("")
+
+        # =========================
+        # 2) DETALLE POR AÑO (igual que antes)
+        # =========================
+        lines.append("="*50)
+        lines.append("DETALLE POR AÑO")
+        lines.append("="*50)
+        lines.append("")
+
         for año in self.anos:
             y = int(año.split('/')[0])
 
@@ -276,19 +388,25 @@ class EmbalseCasoBase:
 
             lines.append("")
             lines.append("Tabla 2 — Servicio y SSR (Hm³)")
-            header2 = ("Mes   Demanda_T  Servicio  Déficit   Q_SSR    Qturb")
+            header2 = ("Mes    DemA    DemB  Demanda_T  Servicio  Déficit   Q_SSR    Qturb")
             lines.append(header2)
-            lines.append("-"*70)
+            lines.append("-"*78)
 
             for i, mes in enumerate(self.meses):
-                demTOTAL = ((self.DA_a_m.get(mes, 0.0) * self.num_A) + (self.DB_a_b.get(mes, 0.0) * self.num_B)) / 1_000_000.0
+                # Demanda mensual (Hm³/mes) — sin segundos
+                cal_m = self.m_mayo_abril_normal[mes]
+                demA = self.DA_a_m.get(cal_m, 0.0) * self.num_A / 1_000_000.0
+                demB = self.DB_a_b.get(cal_m, 0.0) * self.num_B / 1_000_000.0
+                demTOTAL = demA + demB
+
                 servicio = self.Q_DEM[año, mes].X
                 deficit = self.d_TOTAL[año, mes].X
                 Q_SSR = self.Q_ch[año, mes].X
                 Qturb = self.Q_turb[año, mes].X
 
                 row2 = (f"{mes_tag[mes]:<4} "
-                        f"{demTOTAL:9.1f}  {servicio:8.1f}  {deficit:8.1f}  "
+                        f"{demA:8.1f} {demB:7.1f}  {demTOTAL:9.1f}  "
+                        f"{servicio:8.1f}  {deficit:8.1f}  "
                         f"{Q_SSR:7.1f}  {Qturb:7.1f}")
                 lines.append(row2)
 
@@ -298,6 +416,7 @@ class EmbalseCasoBase:
             f.write("\n".join(lines))
         print(f"Reporte TXT escrito en {filename}")
         return filename
+
 
     def solve(self):
         try:
@@ -338,8 +457,8 @@ if __name__ == "__main__":
     if solucion:
         print("Modelo resuelto exitosamente!")
         print(f"Valor objetivo: {solucion['obj_val']:.4f}")
-        print(f"Archivos generados:")
-        print(f"   - Excel: resultados_caso_base.xlsx")
-        print(f"   - TXT: reporte_caso_base.txt")
+        print("Archivos generados:")
+        print("   - Excel: resultados_caso_base.xlsx")
+        print("   - TXT: reporte_caso_base.txt")
     else:
         print("Error al resolver el modelo")
