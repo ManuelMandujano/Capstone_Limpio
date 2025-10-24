@@ -1,5 +1,4 @@
 
-````markdown
 **Requisitos previos**
 - Tener una licencia activa de **Gurobi** instalada y configurada.
 - Tener **pandas** y **numpy**
