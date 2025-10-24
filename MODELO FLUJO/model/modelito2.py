@@ -300,7 +300,7 @@ class EmbalseNuevaPunilla:
 
                 # SSR mensual con prioridad dura 
                 # En cada mes se calcula la exigencia de SSR, que corresponde al consumo humano, priorizándolo por sobre el riego. Si el volumen disponible (V_R_prev + IN_VRFI)
-                # no alcanza para cubrir la cuota mensual más el backlog acumulado del año previo,
+                # no alcanza para cubrir la cuota mensual más el acumulado acumulado del año previo,
                 # se paga lo mínimo entre lo exigido y la capacidad disponible, acumulando el déficit
                 # como SSR_ACUMULADO. Luego se calcula la disponibilidad efectiva del VRFI para apoyar  a los embalses A y B, asegurando su reserva mínima.
                 if i == 0:
@@ -660,7 +660,7 @@ class EmbalseNuevaPunilla:
                 pct_B_prev = (V_B_prev / self.C_TIPO_B * 100) if self.C_TIPO_B > 0 else 0
                 pct_B_fin  = (V_B_fin_m / self.C_TIPO_B * 100) if self.C_TIPO_B > 0 else 0
 
-                motivo  = "-" if EB <= 1e-9 else "Sobra tras llenado (ex-post)"
+                motivo  = "-"
 
                 barR = barra20(pct_R_fin)
                 barA = barra20(pct_A_fin)
