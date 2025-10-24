@@ -435,21 +435,19 @@ class EmbalseNuevaPunilla:
                 m.addConstr(self.V_B[ano, mes] == V_B_prev + self.IN_B[ano, mes] - self.Q_B[ano, mes],
                             name=f"BAL_VB_{ano}_{mes}")    
 
-                # Estas son para imponer limites fisicos de capacidad maxima para cada parte del embalse
-                # osea que nunca tenga mas del maximo y que si llega tenga que distribuir agua
+                # Estas son para imponer limites fisicos de capacidad maxima para cada parte del embalse osea que nunca tenga mas del maximo y que si llega tenga que distribuir agua
                 m.addConstr(self.V_VRFI[ano, mes] <= self.C_VRFI,   name=f"CAP_VRFI_{ano}_{mes}")  
                 m.addConstr(self.V_A[ano, mes]    <= self.C_TIPO_A, name=f"CAP_VA_{ano}_{mes}")    
                 m.addConstr(self.V_B[ano, mes]    <= self.C_TIPO_B, name=f"CAP_VB_{ano}_{mes}")    
 
-                # Aca se revisan los deficits para cada parte del embalse y que se cumpla siempre
-                # que el deficit = Dem - (Propio + Apoyo)
+                # Aca se revisan los deficits para cada parte del embalse y que se cumpla siempre que el deficit = Dem - (Propio + Apoyo)
                 m.addConstr(self.d_A[ano, mes] == demA - (self.Q_A[ano, mes] + self.Q_A_apoyo[ano, mes]),
                             name=f"DEF_A_{ano}_{mes}")  
                 
                 m.addConstr(self.d_B[ano, mes] == demB - (self.Q_B[ano, mes] + self.Q_B_apoyo[ano, mes]),
                             name=f"DEF_B_{ano}_{mes}")  
 
-                # No sobre-servir
+                # No sobre servir
                 m.addConstr(self.Q_A[ano, mes] + self.Q_A_apoyo[ano, mes] <= demA ,
                             name=f"NOSOBRE_A_{ano}_{mes}") 
                 m.addConstr(self.Q_B[ano, mes] + self.Q_B_apoyo[ano, mes] <= demB ,
@@ -736,11 +734,8 @@ class EmbalseNuevaPunilla:
             self.funcion_objetivo()
             self.model.optimize()
             if self.model.status == GRB.INFEASIBLE:
-                print(" Modelo infeasible. Calculando IIS...")
                 self.model.computeIIS()
-                #
                 self.model.write("modelo.ilp")   
-                print("IIS guardado en 'modelo.ilp'. Ábrelo para ver restricciones en conflicto.")
                 return None
 
             if self.model.status in (GRB.OPTIMAL, GRB.SUBOPTIMAL):
