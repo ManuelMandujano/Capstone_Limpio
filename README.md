@@ -1,5 +1,17 @@
-# Instrucciones de ejecucción
-se debe tener licencia de gurobi //
-Para el caso base se debe correr python caso_base.py
-Para el modelo se debe correr python main_modelito2.py
-Para monte carlo se debe correr monte_carlo.py
+# Instrucciones de ejecución
+
+> **Requisitos previos**
+> - Tener una licencia activa de **Gurobi** instalada y configurada.
+
+## Ejecución de los modelos
+
+- **Caso Base:**  
+  ```bash
+  python caso_base.py
+- **Modelo MIlP:**  
+  ```bash
+   python main_modelito2.py
+  - ** Simulación Monte Carlo:**  
+  ```bash
+   python monte_carlo.py
+  
