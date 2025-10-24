@@ -50,10 +50,3 @@ Capstone_Limpio/
     ├── reporte_caso_base.txt          # Reportes en texto del Caso Base en xlsx
     └── reporte_embalse.txt            # Reportes en texto del  Modelo
 ```
-
-```
-
-Si quieres, puedo hacer que quede **visualmente más limpio y consistente** para Markdown, con código resaltado y secciones bien separadas, listo para GitHub, pero sin cambiar contenido. ¿Quieres que haga eso?
-```
-
-  
