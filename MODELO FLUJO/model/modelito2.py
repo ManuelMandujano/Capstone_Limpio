@@ -254,32 +254,36 @@ class EmbalseNuevaPunilla:
                                 [self.REMANENTE_BRUTO[ano, mes], self.CERO_CONSTANTE],
                                 name=f"REMANENTE_clip0_{ano}_{mes}")  # Rem = max(Remanente_bruto, 0) para que no sea negativo
 
-                #  espacios de vol disponibles antes de llenar (capacidad - stock previo)
+                #  espacios de vol disponibles antes de llenar (capacidad - stock previo) 
                 m.addConstr(self.ESPACIO_VRFI[ano, mes] == self.C_VRFI - V_R_prev,
                             name=f"ESPACIO_VRFI_{ano}_{mes}")  # Espacio en VRFI
                 m.addConstr(self.ESPACIO_A[ano, mes] == self.C_TIPO_A - V_A_prev,
                             name=f"ESPACIO_A_{ano}_{mes}")     # Espacio en A
                 m.addConstr(self.ESPACIO_B[ano, mes] == self.C_TIPO_B - V_B_prev,
                             name=f"ESPACIO_B_{ano}_{mes}")     # Espacio en B
-
-                # (1.2) Llenados mínimos: no puedo llenar más que el remanente ni más que el espacio disponible
+                # Acá se controla el llenado de cada división del embalse en función del agua disponible y su espacio libre.
+                # Primero se calcula el remanente bruto (la afluencia menos el caudal previo) y se asegura que no sea negativo usando addGenConstrMax.
+                # Luego, para cada uno, se determina cuánto espacio tiene disponible restando su capacidad total menos el volumen almacenado previamente.
+                # Finalmente, se usan restricciones de tipo min para definir el llenado efectivo, de modo que cada embalse sólo pueda recibir el menor valor
+                # entre su proporción de agua asignada y el espacio libre que tiene.
+                
                 m.addGenConstrMin(self.LLENADO_VRFI[ano, mes],
                                 [self.Rem[ano, mes], self.ESPACIO_VRFI[ano, mes]],
-                                name=f"LLENADO_VRFI_min_{ano}_{mes}")  # Llenado VRFI = min(Rem, Espacio_VRFI)
+                                name=f"LLENADO_VRFI_min_{ano}_{mes}") 
                 m.addConstr(self.REMANENTE_POST_VRFI[ano, mes] == self.Rem[ano, mes] - self.LLENADO_VRFI[ano, mes],
-                            name=f"REMANENTE_POST_VRFI_{ano}_{mes}")  # Remanente luego de llenar VRFI
+                            name=f"REMANENTE_POST_VRFI_{ano}_{mes}") 
                 m.addConstr(self.CUOTA_A[ano, mes] == 0.71 * self.REMANENTE_POST_VRFI[ano, mes],
-                            name=f"CUOTA_A_{ano}_{mes}")  # Cuota 71% a A
+                            name=f"CUOTA_A_{ano}_{mes}")  
                 m.addConstr(self.CUOTA_B[ano, mes] == 0.29 * self.REMANENTE_POST_VRFI[ano, mes],
-                            name=f"CUOTA_B_{ano}_{mes}")  # Cuota 29% a B
+                            name=f"CUOTA_B_{ano}_{mes}")  
                 m.addGenConstrMin(self.LLENADO_A[ano, mes],
                                 [self.CUOTA_A[ano, mes], self.ESPACIO_A[ano, mes]],
-                                name=f"LLENADO_A_min_{ano}_{mes}")  # Llenado A = min(Cuota_A, Espacio_A)
+                                name=f"LLENADO_A_min_{ano}_{mes}")  
                 m.addGenConstrMin(self.LLENADO_B[ano, mes],
                                 [self.CUOTA_B[ano, mes], self.ESPACIO_B[ano, mes]],
-                                name=f"LLENADO_B_min_{ano}_{mes}")  # Llenado B = min(Cuota_B, Espacio_B)
+                                name=f"LLENADO_B_min_{ano}_{mes}")  
 
-                # (1.3) Igualar auxiliares de llenado a entradas formales
+                
                 m.addConstr(self.IN_VRFI[ano, mes] == self.LLENADO_VRFI[ano, mes],
                             name=f"IN_VRFI_{ano}_{mes}")  # Entrada a VRFI
                 m.addConstr(self.IN_A[ano, mes]    == self.LLENADO_A[ano, mes],
@@ -287,12 +291,12 @@ class EmbalseNuevaPunilla:
                 m.addConstr(self.IN_B[ano, mes]    == self.LLENADO_B[ano, mes],
                             name=f"IN_B_{ano}_{mes}")    # Entrada a B
 
-                # (2) REBALSE total = remanente que no pudo entrar en ningún embalse
+                # Calculamos el rebalse total . Además, definimos la  variable de diagnóstico para representar el caudal disponible post-QPD, q nos ayuda para revisar la consistencia del modelo.
                 m.addConstr(self.REBALSE_TOTAL[ano, mes] ==
                             self.Rem[ano, mes] - self.IN_VRFI[ano, mes] - self.IN_A[ano, mes] - self.IN_B[ano, mes],
                             name=f"REBALSE_TOTAL_{ano}_{mes}")
 
-                # (2.1) Variable de reporte: caudal disponible post-QPD (para diagnóstico)
+    
                 m.addConstr(self.Q_dis[ano, mes] == Qin - UPREF, name=f"Q_DISPONIBLE_{ano}_{mes}")
 
                 # (3) SSR mensual con prioridad dura (Consumo Humano paga primero)
