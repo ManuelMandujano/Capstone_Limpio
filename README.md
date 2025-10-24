@@ -1,7 +1,7 @@
 # Instrucciones de ejecución
 
 > **Requisitos previos**
-> - Tener una licencia activa de **Gurobi** instalada y configurada.
+> - Tener una licencia activa de **Gurobi** instalada y configurada. y Tener **pandas** y **numpy** 
 
 ## Ejecución de los modelos
 
