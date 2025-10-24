@@ -322,7 +322,7 @@ class EmbalseNuevaPunilla:
                 m.addConstr(self.SSR_ACUMULADO[ano, mes] == self.SSR_EXIGIDO[ano, mes] - self.Q_CONSUMO_HUMANO[ano, mes],
                             name=f"SSR_ACUMULADO_{ano}_{mes}")  # Backlog del mes (si no alcanza la capacidad)
 
-                # (4) VRFI disponible para apoyar A/B, protegiendo reserva mínima
+                #  VRFI disponible para apoyar A/B, protegiendo su reserva mínima
                 # DISPONIBILIDAD_PRELIM_VRFI = V_R_prev + IN_VRFI - Q_CONSUMO_HUMANO - RESERVA_MIN_VRFI
                 DISPONIBILIDAD_PRELIM_VRFI = m.addVar(lb=-GRB.INFINITY, name=f"DISPONIBILIDAD_PRELIM_VRFI_{ano}_{mes}")
                 m.addConstr(DISPONIBILIDAD_PRELIM_VRFI ==
@@ -332,19 +332,19 @@ class EmbalseNuevaPunilla:
                                 [DISPONIBILIDAD_PRELIM_VRFI, self.CERO_CONSTANTE],
                                 name=f"VRFI_DISP_LIBRE_MAX_{ano}_{mes}")  # Disponibilidad efectiva (no negativa)
 
-                # (5) Límite físico de extracción propia A/B en el mes (no más que stock disponible)
-                m.addConstr(self.Q_A[ano, mes] <= V_A_prev + self.IN_A[ano, mes], name=f"DISP_A_{ano}_{mes}")  # Límite físico A
-                m.addConstr(self.Q_B[ano, mes] <= V_B_prev + self.IN_B[ano, mes], name=f"DISP_B_{ano}_{mes}")  # Límite físico B
+                # Límite físico de extracción propia A/B en el mes ( nosacar más que stock disponible)
+                m.addConstr(self.Q_A[ano, mes] <= V_A_prev + self.IN_A[ano, mes], name=f"DISP_A_{ano}_{mes}")  
+                m.addConstr(self.Q_B[ano, mes] <= V_B_prev + self.IN_B[ano, mes], name=f"DISP_B_{ano}_{mes}") 
 
-                # (5.1) Variables de diagnóstico: disponibilidad propia de A y B
+                # Variables de diagnóstico para ver disponibilidad propia de A y B
                 m.addConstr(self.DISPONIBLE_A[ano, mes] == V_A_prev + self.IN_A[ano, mes],
                             name=f"DISPONIBLE_A_def_{ano}_{mes}")  # Disponibilidad propia A (para reportes)
                 m.addConstr(self.DISPONIBLE_B[ano, mes] == V_B_prev + self.IN_B[ano, mes],
                             name=f"DISPONIBLE_B_def_{ano}_{mes}")  # Disponibilidad propia B (para reportes)
 
-                # (5.2) No sobre-servir respecto de la demanda propia (límites por demanda)
-                m.addConstr(self.Q_A[ano, mes] <= demA, name=f"A_le_Dem_{ano}_{mes}")  # Servicio propio A ≤ Demanda A
-                m.addConstr(self.Q_B[ano, mes] <= demB, name=f"B_le_Dem_{ano}_{mes}")  # Servicio propio B ≤ Demanda B
+                # No sobre servir respecto de la demanda propia (límites por demanda)
+                m.addConstr(self.Q_A[ano, mes] <= demA, name=f"A_le_Dem_{ano}_{mes}")  
+                m.addConstr(self.Q_B[ano, mes] <= demB, name=f"B_le_Dem_{ano}_{mes}") 
 
                 # (6) Mínimo propio requerido para garantizar 50% antes de pedir apoyo del VRFI
                 m.addConstr(self.DEMANDA_A_50[ano, mes] == 0.5 * demA, name=f"DEM_A_50_{ano}_{mes}")  # 50% de DemA
@@ -359,8 +359,8 @@ class EmbalseNuevaPunilla:
                 m.addConstr(self.Q_B[ano, mes] >= self.REQ_B_PROPIO[ano, mes], name=f"B_usa_propio_{ano}_{mes}")  # B usa propio primero
 
                 # (7) Faltantes respecto del 50% (para apoyo VRFI)
-                m.addConstr(self.T_A[ano, mes] == 0.5 * demA - self.Q_A[ano, mes], name=f"T_A_def_{ano}_{mes}")  # Gap A al 50%
-                m.addConstr(self.T_B[ano, mes] == 0.5 * demB - self.Q_B[ano, mes], name=f"T_B_def_{ano}_{mes}")  # Gap B al 50%
+                m.addConstr(self.T_A[ano, mes] == 0.5 * demA - self.Q_A[ano, mes], name=f"T_A_def_{ano}_{mes}")  
+                m.addConstr(self.T_B[ano, mes] == 0.5 * demB - self.Q_B[ano, mes], name=f"T_B_def_{ano}_{mes}")  
                 m.addGenConstrMax(self.FALTANTE_A[ano, mes],
                                 [self.T_A[ano, mes], self.CERO_CONSTANTE],
                                 name=f"FALT_A_pos_{ano}_{mes}")  # FALTANTE_A = max(T_A, 0)
@@ -375,7 +375,7 @@ class EmbalseNuevaPunilla:
                                 [self.VRFI_DISPONIBLE_LIBRE[ano, mes], self.FALTANTE_TOTAL[ano, mes]],
                                 name=f"APOYO_TOTAL_min_{ano}_{mes}")  # Apoyo total = min(Disp_VRFI, Faltante_total)
 
-                # (9) Reparto 71/29 del apoyo VRFI (base), con reasignación de excedentes
+                # reparto 71/29 del apoyo VRFI , con reasignación de excedentes
                 m.addConstr(self.PROPORCION_A[ano, mes] == 0.71 * self.APOYO_TOTAL[ano, mes],
                             name=f"PROP_A_{ano}_{mes}")  # Proporción A del apoyo total
                 m.addConstr(self.PROPORCION_B[ano, mes] == 0.29 * self.APOYO_TOTAL[ano, mes],
