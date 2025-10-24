@@ -15,7 +15,7 @@ class EmbalseCasoBase:
                      '2009/2010', '2010/2011', '2011/2012', '2012/2013', '2013/2014',
                      '2014/2015', '2015/2016', '2016/2017', '2017/2018', '2018/2019']
         
-        # Meses del MODELO: 1..12 = mayo..abril
+        # Meses del MODELO según año hidrologico del excel: 1..12 = mayo..abril
         self.meses = list(range(1, 13))
         self.C_TOTAL = 540  # Hm³
 
