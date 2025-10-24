@@ -1,4 +1,3 @@
-# model/modelito2.py
 import gurobipy as gp
 from gurobipy import GRB
 import pandas as pd
@@ -57,13 +56,13 @@ class EmbalseNuevaPunilla:
         self.FEA = 1.0
         self.FEB = 1.0
 
-        # VOLUMEN CONSUMO HUMANO(Hm³/año
+        # VOLUMEN CONSUMO HUMANO en Hm³/año
         self.V_C_H = 3.9
         
-        #REVISAR ESTOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOO
-        self.acumular_ssr = True  # arrastra lo acumulado de abril a mayo
+        #es el acumulado del servicio de riego hace que se acumule si no se puede entregar agua para consumo humano
+        self.acumular_ssr = True  
 
-        #  reserva VRFI minima del vrfi para meses de sequía en cosnumo humano
+        #  reserva VRFI minima del vrfi para meses de sequía en consumo humano
         self.RESERVA_MIN_VRFI  = 2.275
 
         # volumenes iniciales (si es que no hay año previo)
@@ -128,7 +127,7 @@ class EmbalseNuevaPunilla:
         self.REMANENTE_BRUTO = m.addVars(self.anos, self.meses, name="REMANENTE_BRUTO", lb=-GRB.INFINITY)
         self.CERO_CONSTANTE  = m.addVar(lb=0.0, ub=0.0, name="CERO_CONSTANTE")
 
-        # debug, 
+        # diagnosticos A y B para el 50% propio antesde pedir apoyo VRFI
         self.DISPONIBLE_A = m.addVars(self.anos, self.meses, name="DISPONIBLE_A")
         self.DEMANDA_A_50 = m.addVars(self.anos, self.meses, name="DEMANDA_A_50", lb=0.0)
         self.REQ_A_PROPIO = m.addVars(self.anos, self.meses, name="REQ_A_PROPIO", lb=0.0)
@@ -150,7 +149,7 @@ class EmbalseNuevaPunilla:
         self.EXTRA_HACIA_A = m.addVars(self.anos, self.meses, name="EXTRA_HACIA_A", lb=0.0)
         self.EXTRA_HACIA_B = m.addVars(self.anos, self.meses, name="EXTRA_HACIA_B", lb=0.0)
 
-        # SSR
+        # SSR, servicio sobre riego, 
         self.SSR_EXIGIDO            = m.addVars(self.anos, self.meses, name="SSR_EXIGIDO", lb=0.0)
         self.SSR_ACUMULADO          = m.addVars(self.anos, self.meses, name="SSR_ACUMULADO", lb=0.0)
         self.SSR_CAPACIDAD_VARIABLE = m.addVars(self.anos, self.meses, name="SSR_CAPACIDAD_VARIABLE", lb=0.0)
@@ -256,11 +255,12 @@ class EmbalseNuevaPunilla:
 
                 #  espacios de vol disponibles antes de llenar (capacidad - stock previo) 
                 m.addConstr(self.ESPACIO_VRFI[ano, mes] == self.C_VRFI - V_R_prev,
-                            name=f"ESPACIO_VRFI_{ano}_{mes}")  # Espacio en VRFI
+                            name=f"ESPACIO_VRFI_{ano}_{mes}")  
                 m.addConstr(self.ESPACIO_A[ano, mes] == self.C_TIPO_A - V_A_prev,
-                            name=f"ESPACIO_A_{ano}_{mes}")     # Espacio en A
-                m.addConstr(self.ESPACIO_B[ano, mes] == self.C_TIPO_B - V_B_prev,
-                            name=f"ESPACIO_B_{ano}_{mes}")     # Espacio en B
+                            name=f"ESPACIO_A_{ano}_{mes}")    
+                m.addConstr(self.ESPACIO_B[ano, mes] == self.C_TIPO_B -
+                             V_B_prev,
+                            name=f"ESPACIO_B_{ano}_{mes}")     
                 # Acá se controla el llenado de cada división del embalse en función del agua disponible y su espacio libre.
                 # Primero se calcula el remanente bruto (la afluencia menos el caudal previo) y se asegura que no sea negativo usando addGenConstrMax.
                 # Luego, para cada uno, se determina cuánto espacio tiene disponible restando su capacidad total menos el volumen almacenado previamente.
@@ -298,137 +298,145 @@ class EmbalseNuevaPunilla:
     
                 m.addConstr(self.Q_dis[ano, mes] == Qin - UPREF, name=f"Q_DISPONIBLE_{ano}_{mes}")
 
-                # (3) SSR mensual con prioridad dura (Consumo Humano paga primero)
+                # SSR mensual con prioridad dura 
+                # En cada mes se calcula la exigencia de SSR, que corresponde al consumo humano, priorizándolo por sobre el riego. Si el volumen disponible (V_R_prev + IN_VRFI)
+                # no alcanza para cubrir la cuota mensual más el backlog acumulado del año previo,
+                # se paga lo mínimo entre lo exigido y la capacidad disponible, acumulando el déficit
+                # como SSR_ACUMULADO. Luego se calcula la disponibilidad efectiva del VRFI para apoyar  a los embalses A y B, asegurando su reserva mínima.
                 if i == 0:
-                    # Acumula backlog del año previo (abril→mayo) si está activado
+                    
                     if self.acumular_ssr and a_idx > 0:
                         ano_prev = self.anos[a_idx - 1]
                         acumulado_prev = self.SSR_ACUMULADO[ano_prev, 12]
                     else:
-                        acumulado_prev = self.model.addVar(lb=0.0, ub=0.0, name=f"SSR_ACUMULADO_prev0_{ano}")  # Sin backlog
+                        acumulado_prev = self.model.addVar(lb=0.0, ub=0.0, name=f"SSR_ACUMULADO_prev0_{ano}")  
                 else:
                     acumulado_prev = self.SSR_ACUMULADO[ano, mes - 1]
 
                 m.addConstr(self.SSR_EXIGIDO[ano, mes] == ssr_mes + acumulado_prev,
-                            name=f"SSR_EXIGIDO_{ano}_{mes}")  # Exigencia del mes = cuota mensual + backlog previo
+                            name=f"SSR_EXIGIDO_{ano}_{mes}")  
 
                 m.addConstr(self.SSR_CAPACIDAD_VARIABLE[ano, mes] == V_R_prev + self.IN_VRFI[ano, mes],
-                            name=f"SSR_CAP_VAR_{ano}_{mes}")  # Capacidad para pagar SSR: volumen disponible del VRFI en el mes
+                            name=f"SSR_CAP_VAR_{ano}_{mes}")  
 
                 m.addGenConstrMin(self.Q_CONSUMO_HUMANO[ano, mes],
                                 [self.SSR_EXIGIDO[ano, mes], self.SSR_CAPACIDAD_VARIABLE[ano, mes]],
-                                name=f"SSR_PAGO_MIN_{ano}_{mes}")  # Se paga lo mínimo entre lo exigido y la capacidad
+                                name=f"SSR_PAGO_MIN_{ano}_{mes}")  
 
                 m.addConstr(self.SSR_ACUMULADO[ano, mes] == self.SSR_EXIGIDO[ano, mes] - self.Q_CONSUMO_HUMANO[ano, mes],
-                            name=f"SSR_ACUMULADO_{ano}_{mes}")  # Backlog del mes (si no alcanza la capacidad)
-
+                            name=f"SSR_ACUMULADO_{ano}_{mes}") 
+                
                 #  VRFI disponible para apoyar A/B, protegiendo su reserva mínima
                 # DISPONIBILIDAD_PRELIM_VRFI = V_R_prev + IN_VRFI - Q_CONSUMO_HUMANO - RESERVA_MIN_VRFI
                 DISPONIBILIDAD_PRELIM_VRFI = m.addVar(lb=-GRB.INFINITY, name=f"DISPONIBILIDAD_PRELIM_VRFI_{ano}_{mes}")
                 m.addConstr(DISPONIBILIDAD_PRELIM_VRFI ==
                             V_R_prev + self.IN_VRFI[ano, mes] - self.Q_CONSUMO_HUMANO[ano, mes] - self.RESERVA_MIN_VRFI,
-                            name=f"DISPONIBILIDAD_PRELIM_VRFI_{ano}_{mes}")  # Balance preliminar para apoyo
+                            name=f"DISPONIBILIDAD_PRELIM_VRFI_{ano}_{mes}")  
                 m.addGenConstrMax(self.VRFI_DISPONIBLE_LIBRE[ano, mes],
                                 [DISPONIBILIDAD_PRELIM_VRFI, self.CERO_CONSTANTE],
-                                name=f"VRFI_DISP_LIBRE_MAX_{ano}_{mes}")  # Disponibilidad efectiva (no negativa)
-
-                # Límite físico de extracción propia A/B en el mes ( nosacar más que stock disponible)
+                                name=f"VRFI_DISP_LIBRE_MAX_{ano}_{mes}")  
+                
+                # Límite físico de extracción propia A/B en el mes,  no sacar más que stock disponible)
                 m.addConstr(self.Q_A[ano, mes] <= V_A_prev + self.IN_A[ano, mes], name=f"DISP_A_{ano}_{mes}")  
                 m.addConstr(self.Q_B[ano, mes] <= V_B_prev + self.IN_B[ano, mes], name=f"DISP_B_{ano}_{mes}") 
 
                 # Variables de diagnóstico para ver disponibilidad propia de A y B
                 m.addConstr(self.DISPONIBLE_A[ano, mes] == V_A_prev + self.IN_A[ano, mes],
-                            name=f"DISPONIBLE_A_def_{ano}_{mes}")  # Disponibilidad propia A (para reportes)
+                            name=f"DISPONIBLE_A_def_{ano}_{mes}")  
                 m.addConstr(self.DISPONIBLE_B[ano, mes] == V_B_prev + self.IN_B[ano, mes],
-                            name=f"DISPONIBLE_B_def_{ano}_{mes}")  # Disponibilidad propia B (para reportes)
+                            name=f"DISPONIBLE_B_def_{ano}_{mes}")  
 
-                # No sobre servir respecto de la demanda propia (límites por demanda)
+                # No sobre servir respecto de la demanda propia
                 m.addConstr(self.Q_A[ano, mes] <= demA, name=f"A_le_Dem_{ano}_{mes}")  
                 m.addConstr(self.Q_B[ano, mes] <= demB, name=f"B_le_Dem_{ano}_{mes}") 
 
-                # (6) Mínimo propio requerido para garantizar 50% antes de pedir apoyo del VRFI
-                m.addConstr(self.DEMANDA_A_50[ano, mes] == 0.5 * demA, name=f"DEM_A_50_{ano}_{mes}")  # 50% de DemA
-                m.addConstr(self.DEMANDA_B_50[ano, mes] == 0.5 * demB, name=f"DEM_B_50_{ano}_{mes}")  # 50% de DemB
+
+                # Esto es lo  mínimo propio requerido para garantizar 50% antes de pedir apoyo del VRFI
+                m.addConstr(self.DEMANDA_A_50[ano, mes] == 0.5 * demA, name=f"DEM_A_50_{ano}_{mes}")  
+                m.addConstr(self.DEMANDA_B_50[ano, mes] == 0.5 * demB, name=f"DEM_B_50_{ano}_{mes}")
                 m.addGenConstrMin(self.REQ_A_PROPIO[ano, mes],
                                 [self.DISPONIBLE_A[ano, mes], self.DEMANDA_A_50[ano, mes]],
-                                name=f"REQ_A_PROPIO_min_{ano}_{mes}")  # A debe cubrir min(Disp_A, 50% DemA)
+                                name=f"REQ_A_PROPIO_min_{ano}_{mes}")  # Acá debe cubrir lo mínimo , min(Disp_A, 50% DemA)
                 m.addGenConstrMin(self.REQ_B_PROPIO[ano, mes],
                                 [self.DISPONIBLE_B[ano, mes], self.DEMANDA_B_50[ano, mes]],
-                                name=f"REQ_B_PROPIO_min_{ano}_{mes}")  # B debe cubrir min(Disp_B, 50% DemB)
-                m.addConstr(self.Q_A[ano, mes] >= self.REQ_A_PROPIO[ano, mes], name=f"A_usa_propio_{ano}_{mes}")  # A usa propio primero
-                m.addConstr(self.Q_B[ano, mes] >= self.REQ_B_PROPIO[ano, mes], name=f"B_usa_propio_{ano}_{mes}")  # B usa propio primero
+                                name=f"REQ_B_PROPIO_min_{ano}_{mes}")  # lo mismo para B
+                m.addConstr(self.Q_A[ano, mes] >= self.REQ_A_PROPIO[ano, mes], name=f"A_usa_propio_{ano}_{mes}") 
+                m.addConstr(self.Q_B[ano, mes] >= self.REQ_B_PROPIO[ano, mes], name=f"B_usa_propio_{ano}_{mes}")  
 
-                # (7) Faltantes respecto del 50% (para apoyo VRFI)
+                # Faltantes respecto del 50%, para apoyar VRFI
                 m.addConstr(self.T_A[ano, mes] == 0.5 * demA - self.Q_A[ano, mes], name=f"T_A_def_{ano}_{mes}")  
                 m.addConstr(self.T_B[ano, mes] == 0.5 * demB - self.Q_B[ano, mes], name=f"T_B_def_{ano}_{mes}")  
                 m.addGenConstrMax(self.FALTANTE_A[ano, mes],
                                 [self.T_A[ano, mes], self.CERO_CONSTANTE],
-                                name=f"FALT_A_pos_{ano}_{mes}")  # FALTANTE_A = max(T_A, 0)
+                                name=f"FALT_A_pos_{ano}_{mes}")  
                 m.addGenConstrMax(self.FALTANTE_B[ano, mes],
                                 [self.T_B[ano, mes], self.CERO_CONSTANTE],
-                                name=f"FALT_B_pos_{ano}_{mes}")  # FALTANTE_B = max(T_B, 0)
-
-                # (8) Apoyo VRFI total limitado por disponibilidad y necesidad total
+                                name=f"FALT_B_pos_{ano}_{mes}") 
+                
+                # Apoyo VRFI total limitado por disponibilidad y necesidad total. se gestiona el apoyo del VRFI hacia l A y B. Primero, se calcula la necesidad total sumando los faltantes individuales de A y B, y luego se define el apoyo total disponible como el mínimo entre el volumen libre del VRFI y esta necesidad total.
+                
                 m.addConstr(self.FALTANTE_TOTAL[ano, mes] == self.FALTANTE_A[ano, mes] + self.FALTANTE_B[ano, mes],
-                            name=f"FALT_TOTAL_{ano}_{mes}")  # Necesidad total A+B al 50%
+                            name=f"FALT_TOTAL_{ano}_{mes}") 
                 m.addGenConstrMin(self.APOYO_TOTAL[ano, mes],
                                 [self.VRFI_DISPONIBLE_LIBRE[ano, mes], self.FALTANTE_TOTAL[ano, mes]],
-                                name=f"APOYO_TOTAL_min_{ano}_{mes}")  # Apoyo total = min(Disp_VRFI, Faltante_total)
+                                name=f"APOYO_TOTAL_min_{ano}_{mes}")  
 
                 # reparto 71/29 del apoyo VRFI , con reasignación de excedentes
                 m.addConstr(self.PROPORCION_A[ano, mes] == 0.71 * self.APOYO_TOTAL[ano, mes],
-                            name=f"PROP_A_{ano}_{mes}")  # Proporción A del apoyo total
+                            name=f"PROP_A_{ano}_{mes}")  
                 m.addConstr(self.PROPORCION_B[ano, mes] == 0.29 * self.APOYO_TOTAL[ano, mes],
-                            name=f"PROP_B_{ano}_{mes}")  # Proporción B del apoyo total
+                            name=f"PROP_B_{ano}_{mes}")  
 
                 # Asignación base limitada por la necesidad individual
                 m.addGenConstrMin(self.ASIGNACION_A_BASE[ano, mes],
                                 [self.FALTANTE_A[ano, mes], self.PROPORCION_A[ano, mes]],
-                                name=f"ASIG_A_BASE_min_{ano}_{mes}")  # Asig A base = min(FaltA, PropA)
+                                name=f"ASIG_A_BASE_min_{ano}_{mes}")  
                 m.addGenConstrMin(self.ASIGNACION_B_BASE[ano, mes],
                                 [self.FALTANTE_B[ano, mes], self.PROPORCION_B[ano, mes]],
-                                name=f"ASIG_B_BASE_min_{ano}_{mes}")  # Asig B base = min(FaltB, PropB)
+                                name=f"ASIG_B_BASE_min_{ano}_{mes}") 
 
-                # Excedentes de la proporción que no se usaron por falta de necesidad
+                # excedentes de la proporción que no se usaron por falta de necesidad
                 m.addConstr(self.EXCEDENTE_A[ano, mes] == self.PROPORCION_A[ano, mes] - self.ASIGNACION_A_BASE[ano, mes],
-                            name=f"EXC_A_{ano}_{mes}")  # Excedente asignable de A
+                            name=f"EXC_A_{ano}_{mes}")  
                 m.addConstr(self.EXCEDENTE_B[ano, mes] == self.PROPORCION_B[ano, mes] - self.ASIGNACION_B_BASE[ano, mes],
-                            name=f"EXC_B_{ano}_{mes}")  # Excedente asignable de B
+                            name=f"EXC_B_{ano}_{mes}")  
                 m.addConstr(self.BRECHA_A[ano, mes] == self.FALTANTE_A[ano, mes] - self.ASIGNACION_A_BASE[ano, mes],
-                            name=f"BRECHA_A_{ano}_{mes}")  # Brecha restante A tras base
+                            name=f"BRECHA_A_{ano}_{mes}")  
                 m.addConstr(self.BRECHA_B[ano, mes] == self.FALTANTE_B[ano, mes] - self.ASIGNACION_B_BASE[ano, mes],
-                            name=f"BRECHA_B_{ano}_{mes}")  # Brecha restante B tras base
+                            name=f"BRECHA_B_{ano}_{mes}") 
 
-                # Reasignación cruzada: excedente de A puede cubrir brecha de B y viceversa
+                # Reasignación cruzada, el excedente de A puede cubrir brecha de B y viceversa
                 m.addGenConstrMin(self.EXTRA_HACIA_B[ano, mes],
                                 [self.EXCEDENTE_A[ano, mes], self.BRECHA_B[ano, mes]],
-                                name=f"EXTRA_B_min_{ano}_{mes}")  # Extra A→B = min(ExcA, BrechaB)
+                                name=f"EXTRA_B_min_{ano}_{mes}")  
                 m.addGenConstrMin(self.EXTRA_HACIA_A[ano, mes],
                                 [self.EXCEDENTE_B[ano, mes], self.BRECHA_A[ano, mes]],
-                                name=f"EXTRA_A_min_{ano}_{mes}")  # Extra B→A = min(ExcB, BrechaA)
-
+                                name=f"EXTRA_A_min_{ano}_{mes}") 
+                
                 # Apoyos finales a A y B incluyendo reasignaciones
                 m.addConstr(self.Q_A_apoyo[ano, mes] == self.ASIGNACION_A_BASE[ano, mes] + self.EXTRA_HACIA_A[ano, mes],
-                            name=f"Q_A_APOYO_{ano}_{mes}")  # Apoyo final a A
+                            name=f"Q_A_APOYO_{ano}_{mes}")  
                 m.addConstr(self.Q_B_apoyo[ano, mes] == self.ASIGNACION_B_BASE[ano, mes] + self.EXTRA_HACIA_B[ano, mes],
-                            name=f"Q_B_APOYO_{ano}_{mes}")  # Apoyo final a B
+                            name=f"Q_B_APOYO_{ano}_{mes}")
 
-                # Control: no usar más VRFI para apoyo que lo disponible (suma de apoyos ≤ disponibilidad)
+                # no usar más VRFI para apoyo que lo disponible 
                 m.addConstr(self.Q_A_apoyo[ano, mes] + self.Q_B_apoyo[ano, mes] <= self.VRFI_DISPONIBLE_LIBRE[ano, mes],
                             name=f"APOYO_SUMA_LE_VRFI_{ano}_{mes}")
 
-                #  BALANCEs al final del mes, igual que el informe
+                # Estas son balacnces de masa y volumen para cada división del embalse osea 
+                # volumen inicial + entradas - salidas = volumen final basicamente.
                 m.addConstr(self.V_VRFI[ano, mes] ==
                             V_R_prev + self.IN_VRFI[ano, mes]
                             - self.Q_CONSUMO_HUMANO[ano, mes]
                             - self.Q_A_apoyo[ano, mes] - self.Q_B_apoyo[ano, mes],
-                            name=f"BAL_VRFI_{ano}_{mes}")  # Balance VRFI (descuenta SSR y apoyos)
+                            name=f"BAL_VRFI_{ano}_{mes}")  
                 m.addConstr(self.V_A[ano, mes] == V_A_prev + self.IN_A[ano, mes] - self.Q_A[ano, mes],
-                            name=f"BAL_VA_{ano}_{mes}")    # Balance A (propio)
+                            name=f"BAL_VA_{ano}_{mes}")    
                 m.addConstr(self.V_B[ano, mes] == V_B_prev + self.IN_B[ano, mes] - self.Q_B[ano, mes],
-                            name=f"BAL_VB_{ano}_{mes}")    # Balance B (propio)
+                            name=f"BAL_VB_{ano}_{mes}")    
 
-                # (11) Límite de capacidad de cada embalse (seguridad)
+                # Estas son para imponer limites fisicos de capacidad maxima para cada parte del embalse
+                # osea que nunca tenga mas del maximo y que si llega tenga que distribuir agua
                 m.addConstr(self.V_VRFI[ano, mes] <= self.C_VRFI,   name=f"CAP_VRFI_{ano}_{mes}")  
                 m.addConstr(self.V_A[ano, mes]    <= self.C_TIPO_A, name=f"CAP_VA_{ano}_{mes}")    
                 m.addConstr(self.V_B[ano, mes]    <= self.C_TIPO_B, name=f"CAP_VB_{ano}_{mes}")    
@@ -440,12 +448,12 @@ class EmbalseNuevaPunilla:
                             name=f"DEF_B_{ano}_{mes}")  # Déficit B = DemB - (Propio + Apoyo)
 
                 # No sobre-servir (tolerancia numérica pequeña 1e-9)
-                m.addConstr(self.Q_A[ano, mes] + self.Q_A_apoyo[ano, mes] <= demA + 1e-9,
+                m.addConstr(self.Q_A[ano, mes] + self.Q_A_apoyo[ano, mes] <= demA ,
                             name=f"NOSOBRE_A_{ano}_{mes}")  # Servicio total A ≤ DemA
-                m.addConstr(self.Q_B[ano, mes] + self.Q_B_apoyo[ano, mes] <= demB + 1e-9,
+                m.addConstr(self.Q_B[ano, mes] + self.Q_B_apoyo[ano, mes] <= demB ,
                             name=f"NOSOBRE_B_{ano}_{mes}")  # Servicio total B ≤ DemB
 
-                # (13) Turbinado (no incluye SSR), sí incluye rebalses
+                #  Turbinado no incluye ssr pero sí incluye rebalses
                 m.addConstr(self.Q_turb[ano, mes] ==
                             (self.Q_A[ano, mes] + self.Q_A_apoyo[ano, mes]
                             + self.Q_B[ano, mes] + self.Q_B_apoyo[ano, mes]
@@ -728,8 +736,8 @@ class EmbalseNuevaPunilla:
             if self.model.status == GRB.INFEASIBLE:
                 print(" Modelo infeasible. Calculando IIS...")
                 self.model.computeIIS()
-                # Escribir IIS en formato válido para Gurobi 12:
-                self.model.write("modelo.ilp")   # IIS LP (contiene el subsistema conflictivo)
+                #
+                self.model.write("modelo.ilp")   
                 print("IIS guardado en 'modelo.ilp'. Ábrelo para ver restricciones en conflicto.")
                 return None
 
@@ -749,3 +757,4 @@ class EmbalseNuevaPunilla:
         txt_file = self.exportar_a_txt()
         sol['txt_file'] = txt_file
         return sol
+            
