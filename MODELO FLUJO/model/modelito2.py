@@ -285,11 +285,11 @@ class EmbalseNuevaPunilla:
 
                 
                 m.addConstr(self.IN_VRFI[ano, mes] == self.LLENADO_VRFI[ano, mes],
-                            name=f"IN_VRFI_{ano}_{mes}")  # Entrada a VRFI
+                            name=f"IN_VRFI_{ano}_{mes}")  
                 m.addConstr(self.IN_A[ano, mes]    == self.LLENADO_A[ano, mes],
-                            name=f"IN_A_{ano}_{mes}")    # Entrada a A
+                            name=f"IN_A_{ano}_{mes}")    
                 m.addConstr(self.IN_B[ano, mes]    == self.LLENADO_B[ano, mes],
-                            name=f"IN_B_{ano}_{mes}")    # Entrada a B
+                            name=f"IN_B_{ano}_{mes}")   
 
                 # Calculamos el rebalse total . Además, definimos la  variable de diagnóstico para representar el caudal disponible post-QPD, q nos ayuda para revisar la consistencia del modelo.
                 m.addConstr(self.REBALSE_TOTAL[ano, mes] ==
