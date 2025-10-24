@@ -66,7 +66,7 @@ class EmbalseNuevaPunilla:
         #  reserva VRFI minima del vrfi para meses de sequía en cosnumo humano
         self.RESERVA_MIN_VRFI  = 2.275
 
-        # volumenes iniciales (si no hay año previo)
+        # volumenes iniciales (si es que no hay año previo)
         self.VRFI_init = 0.0
         self.VA_init   = 0.0
         self.VB_init   = 0.0
@@ -82,7 +82,7 @@ class EmbalseNuevaPunilla:
 
         # llenados y rebalse (Hm³/mes)
         self.IN_VRFI = m.addVars(self.anos, self.meses, name="IN_VRFI", lb=0)
-        self.IN_A    = m.addVars(self.anos, self.meses, name="IN_A", lb=0)   # <- antes decía clb=0
+        self.IN_A    = m.addVars(self.anos, self.meses, name="IN_A", lb=0)   
         self.IN_B    = m.addVars(self.anos, self.meses, name="IN_B", lb=0)
         self.REBALSE_TOTAL = m.addVars(self.anos, self.meses, name="REBALSE_TOTAL", lb=0)
 
@@ -115,7 +115,7 @@ class EmbalseNuevaPunilla:
         self.LLENADO_A = m.addVars(self.anos, self.meses, name="LLENADO_A", lb=0)
         self.LLENADO_B = m.addVars(self.anos, self.meses, name="LLENADO_B", lb=0)
 
-        # faltantes 50%
+        # faltantes 
         self.FALTANTE_A = m.addVars(self.anos, self.meses, name="FALTANTE_A", lb=0)
         self.FALTANTE_B = m.addVars(self.anos, self.meses, name="FALTANTE_B", lb=0)
 
@@ -128,7 +128,7 @@ class EmbalseNuevaPunilla:
         self.REMANENTE_BRUTO = m.addVars(self.anos, self.meses, name="REMANENTE_BRUTO", lb=-GRB.INFINITY)
         self.CERO_CONSTANTE  = m.addVar(lb=0.0, ub=0.0, name="CERO_CONSTANTE")
 
-        # debug
+        # debug, 
         self.DISPONIBLE_A = m.addVars(self.anos, self.meses, name="DISPONIBLE_A")
         self.DEMANDA_A_50 = m.addVars(self.anos, self.meses, name="DEMANDA_A_50", lb=0.0)
         self.REQ_A_PROPIO = m.addVars(self.anos, self.meses, name="REQ_A_PROPIO", lb=0.0)
@@ -191,14 +191,14 @@ class EmbalseNuevaPunilla:
         m = self.model
         data_file = "data/caudales.xlsx"
 
-        # Cargar series desde Excel → caudal afluente al VRFI y caudales de hoyas para QPD
+        # acá se cargan  desde las tablas del  Excel
         (self.caudal_afluente,
         self.Q_nuble,
         self.Q_hoya1,
         self.Q_hoya2,
         self.Q_hoya3) = self.cargar_data(data_file)
 
-        # Caudal QPD efectivo (m³/s) según derechos/ecológico y límite por Nuble (orden MAY–ABR)
+        # Caudal QPD efectivo en m³/s según derechos/ecológico y límite por Nuble en  de orden MAY–ABR
         derechos_MAY_ABR = [52.00, 52.00, 52.00, 52.00, 57.70, 76.22, 69.22, 52.00, 52.00, 52.00, 52.00, 52.00]
         qeco_MAY_ABR     = [10.00, 10.35, 14.48, 15.23, 15.23, 15.23, 15.23, 15.23, 12.80, 15.20, 16.40, 17.60]
 
@@ -206,7 +206,7 @@ class EmbalseNuevaPunilla:
         for ano in self.anos:
             y = int(ano.split('/')[0])
             for mes in self.meses:
-                # H = sumatoria de aportes de hoyas que reducen el QPD nominal 95.7 - H
+                # H es sumatoria de aportes de hoyas que reducen el QPD nominal 95.7 - H
                 H = (self.Q_hoya1.get((y, mes), 0.0)
                     + self.Q_hoya2.get((y, mes), 0.0)
                     + self.Q_hoya3.get((y, mes), 0.0))
@@ -215,37 +215,38 @@ class EmbalseNuevaPunilla:
                 # QPD efectivo limitado por el propio Nuble
                 self.QPD_eff[ano, mes] = min(qpd_nom, self.Q_nuble.get((y, mes), 0.0))
 
-        # SSR mensual (Hm³/mes) = volumen anual de consumo humano/12 (obligación prioritaria)
+        # SSR mensual (Hm³/mes) es el  volumen anual de consumo humano/12 
         ssr_mes = self.V_C_H / 12.0
 
         for a_idx, ano in enumerate(self.anos):
             y = int(ano.split('/')[0])
             for i, mes in enumerate(self.meses):
                 seg   = self.segundos_por_mes[mes]
-                Qin_s = self.caudal_afluente.get((y, mes), 0.0)               # m³/s
-                Qin   = Qin_s * seg / 1_000_000.0                             # Hm³/mes (afluencia)
-                UPREF = self.QPD_eff[ano, mes] * seg / 1_000_000.0            # Hm³/mes (QPD mensual)
+                Qin_s = self.caudal_afluente.get((y, mes), 0.0)               
+                Qin   = Qin_s * seg / 1_000_000.0                             # lo pasamos Hm³/mes 
+                UPREF = self.QPD_eff[ano, mes] * seg / 1_000_000.0            
 
                 key_civil = self.hidrologico_a_civil[mes]
-                demA = (self.demanda_A_mensual[key_civil] * self.num_acciones_A * self.FEA) / 1_000_000.0  # Demanda A (Hm³/mes)
-                demB = (self.demanda_B_mensual[key_civil] * self.num_acciones_B * self.FEB) / 1_000_000.0  # Demanda B (Hm³/mes)
+                demA = (self.demanda_A_mensual[key_civil] * self.num_acciones_A * self.FEA) / 1_000_000.0  # pasamos demanda A a Hm³/mes
+                demB = (self.demanda_B_mensual[key_civil] * self.num_acciones_B * self.FEB) / 1_000_000.0  # pasamos demanda B a Hm³/mes
 
-                # Volúmenes al cierre del periodo anterior (si es el primer mes del año, toma los del año previo o los iniciales)
+                # lo que se realiza aca son es realionar los volúmenes al cierre del periodo anterior (si es el primer mes del año,  se toman  los del año previo o los iniciales)
                 if i == 0:
                     if a_idx > 0:
                         ano_prev = self.anos[a_idx - 1]
-                        V_R_prev = self.V_VRFI[ano_prev, 12]   # VRFI al cierre de abril del año anterior
-                        V_A_prev = self.V_A[ano_prev, 12]      # A al cierre de abril del año anterior
-                        V_B_prev = self.V_B[ano_prev, 12]      # B al cierre de abril del año anterior
+                        V_R_prev = self.V_VRFI[ano_prev, 12]   # VRFI cuando termina, es decir el abril del año anterior
+                        V_A_prev = self.V_A[ano_prev, 12]      # lo mismo para A 
+                        V_B_prev = self.V_B[ano_prev, 12]      # lo mismo para b
                     else:
-                        V_R_prev = self.model.addVar(lb=self.VRFI_init, ub=self.VRFI_init, name="VRFI_prev_init")  # VRFI inicial fijo
-                        V_A_prev = self.model.addVar(lb=self.VA_init,   ub=self.VA_init,   name="VA_prev_init")    # A inicial fijo
-                        V_B_prev = self.model.addVar(lb=self.VB_init,   ub=self.VB_init,   name="VB_prev_init")    # B inicial fijo
+                        V_R_prev = self.model.addVar(lb=self.VRFI_init, ub=self.VRFI_init, name="VRFI_prev_init") 
+                        V_A_prev = self.model.addVar(lb=self.VA_init,   ub=self.VA_init,   name="VA_prev_init")    
+                        V_B_prev = self.model.addVar(lb=self.VB_init,   ub=self.VB_init,   name="VB_prev_init")   
                 else:
-                    V_R_prev = self.V_VRFI[ano, mes-1]  # VRFI del mes anterior
-                    V_A_prev = self.V_A[ano,  mes-1]   # A del mes anterior
-                    V_B_prev = self.V_B[ano,  mes-1]   # B del mes anterior
+                    V_R_prev = self.V_VRFI[ano, mes-1]  
+                    V_A_prev = self.V_A[ano,  mes-1]   
+                    V_B_prev = self.V_B[ano,  mes-1]   
 
+                
                 # (1) REMANENTE después de QPD (puede ser negativo en bruto; luego se trunca en 0)
                 m.addConstr(self.REMANENTE_BRUTO[ano, mes] == Qin - UPREF,
                             name=f"REMANENTE_BRUTO_{ano}_{mes}")  # Remanente bruto = Afluencia - QPD
