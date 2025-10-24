@@ -43,7 +43,7 @@ class EmbalseNuevaPunilla:
         self.Q_hoya2 = {}
         self.Q_hoya3 = {}
 
-        # = DEMANDAS (m³/mes por acción)  esto  es segun doc del profe, después las pasamos a  Hm³
+        # = DEMANDAS (m³/mes por acción)  esto  es segun doc de regla operación, después las pasamos a  Hm³
         self.num_acciones_A  = 21221
         self.num_acciones_B  = 7100
         self.demanda_A_mensual = {1:9503,2:6516,3:3452,4:776,5:0,6:0,7:0,8:0,9:0,10:2444,11:6516,12:9580}
@@ -441,17 +441,19 @@ class EmbalseNuevaPunilla:
                 m.addConstr(self.V_A[ano, mes]    <= self.C_TIPO_A, name=f"CAP_VA_{ano}_{mes}")    
                 m.addConstr(self.V_B[ano, mes]    <= self.C_TIPO_B, name=f"CAP_VB_{ano}_{mes}")    
 
-                # (12) Déficits mensuales (para la función objetivo) y no-sobre-servicio
+                # Aca se revisan los deficits para cada parte del embalse y que se cumpla siempre
+                # que el deficit = Dem - (Propio + Apoyo)
                 m.addConstr(self.d_A[ano, mes] == demA - (self.Q_A[ano, mes] + self.Q_A_apoyo[ano, mes]),
-                            name=f"DEF_A_{ano}_{mes}")  # Déficit A = DemA - (Propio + Apoyo)
+                            name=f"DEF_A_{ano}_{mes}")  
+                
                 m.addConstr(self.d_B[ano, mes] == demB - (self.Q_B[ano, mes] + self.Q_B_apoyo[ano, mes]),
-                            name=f"DEF_B_{ano}_{mes}")  # Déficit B = DemB - (Propio + Apoyo)
+                            name=f"DEF_B_{ano}_{mes}")  
 
-                # No sobre-servir (tolerancia numérica pequeña 1e-9)
+                # No sobre-servir
                 m.addConstr(self.Q_A[ano, mes] + self.Q_A_apoyo[ano, mes] <= demA ,
-                            name=f"NOSOBRE_A_{ano}_{mes}")  # Servicio total A ≤ DemA
+                            name=f"NOSOBRE_A_{ano}_{mes}") 
                 m.addConstr(self.Q_B[ano, mes] + self.Q_B_apoyo[ano, mes] <= demB ,
-                            name=f"NOSOBRE_B_{ano}_{mes}")  # Servicio total B ≤ DemB
+                            name=f"NOSOBRE_B_{ano}_{mes}")  
 
                 #  Turbinado no incluye ssr pero sí incluye rebalses
                 m.addConstr(self.Q_turb[ano, mes] ==
