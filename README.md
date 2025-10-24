@@ -11,7 +11,8 @@
 - **Modelo MIlP:**  
   ```bash
    python main_modelito2.py
-  - ** Simulación Monte Carlo:**  
+
+- **Simulación Monte Carlo:**  
   ```bash
    python monte_carlo.py
   
