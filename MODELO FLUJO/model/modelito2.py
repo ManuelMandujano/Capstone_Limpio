@@ -264,8 +264,7 @@ class EmbalseNuevaPunilla:
                 # Acá se controla el llenado de cada división del embalse en función del agua disponible y su espacio libre.
                 # Primero se calcula el remanente bruto (la afluencia menos el caudal previo) y se asegura que no sea negativo usando addGenConstrMax.
                 # Luego, para cada uno, se determina cuánto espacio tiene disponible restando su capacidad total menos el volumen almacenado previamente.
-                # Finalmente, se usan restricciones de tipo min para definir el llenado efectivo, de modo que cada embalse sólo pueda recibir el menor valor
-                # entre su proporción de agua asignada y el espacio libre que tiene.
+                # Finalmente, usAmos restricciones de tipo min para definir el llenado efectivo, de modo que cada división del embalse sólo pueda recibir el menor valor entre su proporción de agua asignada y el espacio libre que tiene.
                 
                 m.addGenConstrMin(self.LLENADO_VRFI[ano, mes],
                                 [self.Rem[ano, mes], self.ESPACIO_VRFI[ano, mes]],
