@@ -450,16 +450,16 @@ class EmbalseNuevaPunilla:
                             (self.Q_A[ano, mes] + self.Q_A_apoyo[ano, mes]
                             + self.Q_B[ano, mes] + self.Q_B_apoyo[ano, mes]
                             + self.REBALSE_TOTAL[ano, mes]),
-                            name=f"TURB_{ano}_{mes}")  # Qturb = salidas productivas + rebalses (SSR no turbina)
+                            name=f"TURB_{ano}_{mes}")  
 
 
 
-    #  funcion objetivo
+    #  función objetivo
     def funcion_objetivo(self):
         total_def = gp.quicksum(self.d_A[a,m] + self.d_B[a,m] for a in self.anos for m in self.meses)
         self.model.setObjective(total_def, GRB.MINIMIZE)
 
-        # =========================
+        
     def exportar_a_excel(self, filename="resultados_embalse.xlsx"):
         data = []
         for ano in self.anos:
