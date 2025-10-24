@@ -19,7 +19,7 @@ class EmbalseCasoBase:
         self.meses = list(range(1, 13))
         self.C_TOTAL = 540  # Hm³
 
-        # Segundos por mes del MODELO (1=may, ..., 12=abr)
+        # Segundos por mes
         self.segundos_por_mes = {
             1: 31*24*3600,  # may
             2: 30*24*3600,  # jun
@@ -35,22 +35,22 @@ class EmbalseCasoBase:
             12: 30*24*3600  # abr
         }
 
-        # Datos hidrológicos
+        
         self.inflow  = {}
         self.Q_nuble = {}
         self.Q_hoya1 = {}
         self.Q_hoya2 = {}
         self.Q_hoya3 = {}
 
-        # Acciones
+        # Acciones según documento regla
         self.num_A = 21221
         self.num_B = 7100
 
-        # Demandas mensuales por acción (m³/mes por acción), indexadas por mes CALENDARIO (1=ene,...,12=dic)
+        # Demandas mensuales por acción (m³/mes por acción), indexadas por mes calendario normal (1=ene,...,12=dic)
         self.DA_a_m = {1:9503,2:6516,3:3452,4:776,5:0,6:0,7:0,8:0,9:0,10:2444,11:6516,12:9580}
         self.DB_a_b = {1:3361,2:2305,3:1221,4:274,5:0,6:0,7:0,8:0,9:0,10: 864,11:2305,12:3388}
 
-        # Mapeo de mes MODELO (may..abr) → mes CALENDARIO (ene..dic)
+        # Mapeo de mes hidrologico del excel a mes normal
         # 1=may→5, 2=jun→6, ..., 8=dic→12, 9=ene→1, ..., 12=abr→4
         self.m_mayo_abril_normal = {1:5,2:6,3:7,4:8,5:9,6:10,7:11,8:12,9:1,10:2,11:3,12:4}
 
@@ -258,9 +258,9 @@ class EmbalseCasoBase:
         mes_tag = {1:'may',2:'jun',3:'jul',4:'ago',5:'sep',6:'oct',7:'nov',8:'dic',9:'ene',10:'feb',11:'mar',12:'abr'}
         lines = []
 
-        # =========================
+    
         # 1) KPI AGREGADOS (30 AÑOS)
-        # =========================
+        
         NY = len(self.anos)
         sum_q_turb_total = 0.0
         sum_rebalse_total = 0.0
@@ -304,16 +304,16 @@ class EmbalseCasoBase:
                 demanda_total += demT
                 servicio_total += serv
 
-        # KPIs globales
+        # KPI globales
         rebalse_prom_mensual_total = sum_rebalse_total / (NY * 12.0)
         qdis_prom_mensual_total = sum_qdis_total / (NY * 12.0)
         satisf_ponderada_global = (servicio_total / demanda_total * 100.0) if demanda_total > 0 else 100.0
 
-        # Último stock al final del último periodo (abril del último año)
+        # Último stock al final del último periodo osea abril ultimo año
         ultimo_anio = self.anos[-1]
         V_fin_total = self.V_TOTAL[ultimo_anio, 12].X  # 12 = abr (fin del ciclo mayo-abril)
 
-        # Encabezado KPI
+        #
         lines.append("="*70)
         lines.append("RESUMEN 30 AÑOS — AGREGADOS")
         lines.append("="*70)
@@ -341,9 +341,9 @@ class EmbalseCasoBase:
         lines.append("  (Este modelo no separa stocks A/B; se reporta el volumen total del embalse)")
         lines.append("")
 
-        # =========================
-        # 2) DETALLE POR AÑO (igual que antes)
-        # =========================
+        #
+        # DETALLE POR AÑO 
+     
         lines.append("="*50)
         lines.append("DETALLE POR AÑO")
         lines.append("="*50)
