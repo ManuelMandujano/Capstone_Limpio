@@ -1,0 +1,161 @@
+==============================================================================
+RESÚMENES COMPACTOS — INTERVALOS DE 10 AÑOS
+==============================================================================
+Factores fijos: FEA=1.000 | FEB=1.000
+Volúmenes iniciales fijos: VRFI=17.50 Hm³ | A=26.00 Hm³ | B=10.50 Hm³
+
+==============================================================================
+ITERACIÓN 1 — Intervalo 1989/1990 → 1998/1999
+------------------------------------------------------------------------------
+FEA=1.000 | FEB=1.000
+VRFI0=17.50 Hm³ | A0=26.00 Hm³ | B0=10.50 Hm³
+==============================================================================
+
+======================================================================
+RESUMEN DEL INTERVALO — 1989/1990 → 1998/1999
+======================================================================
+Volumen turbinado TOTAL (intervalo): 8,068.0 Hm³
+Rebalse TOTAL (intervalo): 3,714.8 Hm³
+Déficit TOTAL (intervalo): 4,851.8 Hm³
+Caudal disponible PROMEDIO mensual (intervalo): 67.09 Hm³/mes
+Satisfacción ponderada PROMEDIO (intervalo):  47.29%
+
+Promedios mensuales sobre el intervalo:
+Mes   Rebalse prom [Hm³/mes]   Q_dis prom [Hm³/mes]   %Satisfaccion (ponderada)
+----------------------------------------------------------------------
+may         1.88                    108.42                100.00%
+jun        40.19                    179.63                100.00%
+jul        49.72                     98.40                100.00%
+ago        53.55                     69.51                100.00%
+sep        79.02                    120.17                100.00%
+oct        80.24                     90.03                 82.13%
+nov        62.65                    101.79                 74.57%
+dic         4.24                     37.15                 58.97%
+ene         0.00                      0.00                 34.05%
+feb         0.00                      0.00                 33.17%
+mar         0.00                      0.00                 11.04%
+abr         0.00                      0.00                  6.34%
+
+Promedios mensuales — Déficit y Volumen almacenado al fin de mes
+Mes   Déficit prom [Hm³/mes]   VRFI fin prom   A fin prom   B fin prom   TOTAL fin prom [Hm³]
+------------------------------------------------------------------------------------------
+may       0.00                   61.36          36.84        29.64           127.84
+jun       0.00                  107.71         106.01        53.24           266.96
+jul       0.00                  114.00         135.96        65.36           315.32
+ago       0.00                  121.11         142.01        67.83           330.95
+sep       0.00                  136.02         163.64        72.13           371.79
+oct      10.37                  141.37         125.81        66.44           333.62
+nov      39.32                  130.05          72.12        54.98           257.15
+dic      93.29                  107.46           3.00        45.24           155.70
+ene     148.74                   47.70           0.00        30.92            78.62
+feb     103.34                    5.92           0.00        21.10            27.02
+mar      72.88                    1.79           0.00        15.90            17.68
+abr      17.25                    1.49           0.00        14.73            16.22
+
+Agua almacenada al final del intervalo (fin del último periodo):
+  VRFI: 0.0 Hm³   A: 0.0 Hm³   B: 0.0 Hm³   TOTAL: 0.0 Hm³
+
+
+==============================================================================
+ITERACIÓN 2 — Intervalo 1999/2000 → 2008/2009
+------------------------------------------------------------------------------
+FEA=1.000 | FEB=1.000
+VRFI0=17.50 Hm³ | A0=26.00 Hm³ | B0=10.50 Hm³
+==============================================================================
+
+======================================================================
+RESUMEN DEL INTERVALO — 1999/2000 → 2008/2009
+======================================================================
+Volumen turbinado TOTAL (intervalo): 8,708.5 Hm³
+Rebalse TOTAL (intervalo): 3,438.2 Hm³
+Déficit TOTAL (intervalo): 3,934.7 Hm³
+Caudal disponible PROMEDIO mensual (intervalo): 72.57 Hm³/mes
+Satisfacción ponderada PROMEDIO (intervalo):  57.25%
+
+Promedios mensuales sobre el intervalo:
+Mes   Rebalse prom [Hm³/mes]   Q_dis prom [Hm³/mes]   %Satisfaccion (ponderada)
+----------------------------------------------------------------------
+may         0.00                     73.79                100.00%
+jun         0.00                    142.05                100.00%
+jul        73.36                    144.50                100.00%
+ago        85.96                    144.26                100.00%
+sep        59.05                    101.30                100.00%
+oct        65.34                    107.15                 95.53%
+nov        49.14                    108.19                 91.17%
+dic        10.96                     48.28                 64.40%
+ene         0.00                      1.37                 47.93%
+feb         0.00                      0.00                 39.56%
+mar         0.00                      0.00                 15.35%
+abr         0.00                      0.00                 12.92%
+
+Promedios mensuales — Déficit y Volumen almacenado al fin de mes
+Mes   Déficit prom [Hm³/mes]   VRFI fin prom   A fin prom   B fin prom   TOTAL fin prom [Hm³]
+------------------------------------------------------------------------------------------
+may       0.00                   48.33          24.39        24.44            97.16
+jun       0.00                  112.03          79.78        47.07           238.88
+jul       0.00                  124.41         127.84        57.44           309.69
+ago       0.00                  142.88         157.04        67.75           367.67
+sep       0.00                  158.62         175.96        75.02           409.60
+oct       2.59                  161.32         154.99        79.37           395.67
+nov      13.66                  157.44          82.64        73.34           313.42
+dic      80.94                  139.41           7.10        57.48           203.99
+ene     117.44                   59.49           0.00        37.45            96.94
+feb      93.47                   11.08           0.00        24.36            35.44
+mar      69.35                    5.11           0.00        17.42            22.54
+abr      16.03                    3.97           0.00        15.86            19.83
+
+Agua almacenada al final del intervalo (fin del último periodo):
+  VRFI: 1.6 Hm³   A: 0.0 Hm³   B: 13.7 Hm³   TOTAL: 15.4 Hm³
+
+
+==============================================================================
+ITERACIÓN 3 — Intervalo 2009/2010 → 2018/2019
+------------------------------------------------------------------------------
+FEA=1.000 | FEB=1.000
+VRFI0=17.50 Hm³ | A0=26.00 Hm³ | B0=10.50 Hm³
+==============================================================================
+
+======================================================================
+RESUMEN DEL INTERVALO — 2009/2010 → 2018/2019
+======================================================================
+Volumen turbinado TOTAL (intervalo): 4,028.4 Hm³
+Rebalse TOTAL (intervalo): 267.7 Hm³
+Déficit TOTAL (intervalo): 5,444.3 Hm³
+Caudal disponible PROMEDIO mensual (intervalo): 33.46 Hm³/mes
+Satisfacción ponderada PROMEDIO (intervalo):  40.85%
+
+Promedios mensuales sobre el intervalo:
+Mes   Rebalse prom [Hm³/mes]   Q_dis prom [Hm³/mes]   %Satisfaccion (ponderada)
+----------------------------------------------------------------------
+may         0.00                      4.24                100.00%
+jun         0.00                     20.24                100.00%
+jul         0.00                     49.34                100.00%
+ago         0.00                     80.56                100.00%
+sep         5.65                     82.27                100.00%
+oct        14.75                     76.94                 86.06%
+nov         6.38                     79.29                 74.93%
+dic         0.00                      8.59                 41.98%
+ene         0.00                      0.00                 34.57%
+feb         0.00                      0.00                 20.57%
+mar         0.00                      0.00                  5.24%
+abr         0.00                      0.00                  4.23%
+
+Promedios mensuales — Déficit y Volumen almacenado al fin de mes
+Mes   Déficit prom [Hm³/mes]   VRFI fin prom   A fin prom   B fin prom   TOTAL fin prom [Hm³]
+------------------------------------------------------------------------------------------
+may       0.00                    6.87           2.60         6.28            15.75
+jun       0.00                   26.79           2.60         6.28            35.67
+jul       0.00                   73.47           4.28         6.97            84.71
+ago       0.00                  106.39          37.85        20.68           164.92
+sep       0.00                  133.22          73.76        34.24           241.22
+oct       8.09                  134.48          74.81        43.87           253.16
+nov      38.76                  123.63          38.17        48.08           209.88
+dic     131.91                   88.51           0.00        34.18           122.69
+ene     147.57                   24.55           0.00        19.86            44.42
+feb     122.84                    2.24           0.00        10.04            12.29
+mar      77.63                    1.66           0.00         6.01             7.66
+abr      17.63                    1.33           0.00         5.23             6.56
+
+Agua almacenada al final del intervalo (fin del último periodo):
+  VRFI: 1.3 Hm³   A: 0.0 Hm³   B: 0.0 Hm³   TOTAL: 1.3 Hm³
+

@@ -127,15 +127,12 @@ class EmbalseNuevaPunilla:
         self.REMANENTE_BRUTO = m.addVars(self.anos, self.meses, name="REMANENTE_BRUTO", lb=-GRB.INFINITY)
         self.CERO_CONSTANTE  = m.addVar(lb=0.0, ub=0.0, name="CERO_CONSTANTE")
 
-        # diagnosticos A y B para el 50% propio antesde pedir apoyo VRFI
+        # Diagnóstico de disponibles y “gap a 50%”
         self.DISPONIBLE_A = m.addVars(self.anos, self.meses, name="DISPONIBLE_A")
-        self.DEMANDA_A_50 = m.addVars(self.anos, self.meses, name="DEMANDA_A_50", lb=0.0)
-        self.REQ_A_PROPIO = m.addVars(self.anos, self.meses, name="REQ_A_PROPIO", lb=0.0)
         self.DISPONIBLE_B = m.addVars(self.anos, self.meses, name="DISPONIBLE_B")
-        self.DEMANDA_B_50 = m.addVars(self.anos, self.meses, name="DEMANDA_B_50", lb=0.0)
-        self.REQ_B_PROPIO = m.addVars(self.anos, self.meses, name="REQ_B_PROPIO", lb=0.0)
-        self.T_A = m.addVars(self.anos, self.meses, name="T_A")
-        self.T_B = m.addVars(self.anos, self.meses, name="T_B")
+        self.T_A = m.addVars(self.anos, self.meses, name="T_A", lb=-GRB.INFINITY)
+        self.T_B = m.addVars(self.anos, self.meses, name="T_B", lb=-GRB.INFINITY)
+
 
         # reparto 71/29
         self.PROPORCION_A = m.addVars(self.anos, self.meses, name="PROPORCION_A")
@@ -351,27 +348,36 @@ class EmbalseNuevaPunilla:
                 m.addConstr(self.Q_B[ano, mes] <= demB, name=f"B_le_Dem_{ano}_{mes}") 
 
 
-                # Esto es lo  mínimo propio requerido para garantizar 50% antes de pedir apoyo del VRFI
-                m.addConstr(self.DEMANDA_A_50[ano, mes] == 0.5 * demA, name=f"DEM_A_50_{ano}_{mes}")  
-                m.addConstr(self.DEMANDA_B_50[ano, mes] == 0.5 * demB, name=f"DEM_B_50_{ano}_{mes}")
-                m.addGenConstrMin(self.REQ_A_PROPIO[ano, mes],
-                                [self.DISPONIBLE_A[ano, mes], self.DEMANDA_A_50[ano, mes]],
-                                name=f"REQ_A_PROPIO_min_{ano}_{mes}")  # Acá debe cubrir lo mínimo , min(Disp_A, 50% DemA)
-                m.addGenConstrMin(self.REQ_B_PROPIO[ano, mes],
-                                [self.DISPONIBLE_B[ano, mes], self.DEMANDA_B_50[ano, mes]],
-                                name=f"REQ_B_PROPIO_min_{ano}_{mes}")  # lo mismo para B
-                m.addConstr(self.Q_A[ano, mes] >= self.REQ_A_PROPIO[ano, mes], name=f"A_usa_propio_{ano}_{mes}") 
-                m.addConstr(self.Q_B[ano, mes] >= self.REQ_B_PROPIO[ano, mes], name=f"B_usa_propio_{ano}_{mes}")  
+                # --- PROPIO SIEMPRE PRIMERO: Q_A = min(disponible propio A, DemA); Q_B = min(disponible propio B, DemB)
 
-                # Faltantes respecto del 50%, para apoyar VRFI
-                m.addConstr(self.T_A[ano, mes] == 0.5 * demA - self.Q_A[ano, mes], name=f"T_A_def_{ano}_{mes}")  
-                m.addConstr(self.T_B[ano, mes] == 0.5 * demB - self.Q_B[ano, mes], name=f"T_B_def_{ano}_{mes}")  
-                m.addGenConstrMax(self.FALTANTE_A[ano, mes],
-                                [self.T_A[ano, mes], self.CERO_CONSTANTE],
-                                name=f"FALT_A_pos_{ano}_{mes}")  
-                m.addGenConstrMax(self.FALTANTE_B[ano, mes],
-                                [self.T_B[ano, mes], self.CERO_CONSTANTE],
-                                name=f"FALT_B_pos_{ano}_{mes}") 
+                # “Constantes” de demanda como variables fijadas (evita IIS al usar MIN)
+                DEM_A_CONST = m.addVar(lb=demA, ub=demA, name=f"DEM_A_CONST_{ano}_{mes}")
+                DEM_B_CONST = m.addVar(lb=demB, ub=demB, name=f"DEM_B_CONST_{ano}_{mes}")
+
+                # Auxiliares para el mínimo
+                MIN_A_PROPIO = m.addVar(lb=0.0, name=f"MIN_A_PROPIO_{ano}_{mes}")
+                MIN_B_PROPIO = m.addVar(lb=0.0, name=f"MIN_B_PROPIO_{ano}_{mes}")
+
+                # Q_A = min(DISPONIBLE_A, DemA)
+                m.addGenConstrMin(MIN_A_PROPIO, [self.DISPONIBLE_A[ano, mes], DEM_A_CONST],
+                                name=f"MIN_A_PROPIO_min_{ano}_{mes}")
+                m.addConstr(self.Q_A[ano, mes] == MIN_A_PROPIO, name=f"A_usa_todo_propio_{ano}_{mes}")
+
+                # Q_B = min(DISPONIBLE_B, DemB)
+                m.addGenConstrMin(MIN_B_PROPIO, [self.DISPONIBLE_B[ano, mes], DEM_B_CONST],
+                                name=f"MIN_B_PROPIO_min_{ano}_{mes}")
+                m.addConstr(self.Q_B[ano, mes] == MIN_B_PROPIO, name=f"B_usa_todo_propio_{ano}_{mes}")
+
+                # === FALTANTE SOLO HASTA 50% (dispara y limita VRFI)
+                m.addConstr(self.T_A[ano, mes] == 0.5 * demA - self.Q_A[ano, mes], name=f"T_A_gap50_{ano}_{mes}")
+                m.addConstr(self.T_B[ano, mes] == 0.5 * demB - self.Q_B[ano, mes], name=f"T_B_gap50_{ano}_{mes}")
+
+                m.addGenConstrMax(self.FALTANTE_A[ano, mes], [self.T_A[ano, mes], self.CERO_CONSTANTE],
+                                name=f"FALT_A_pos_gap50_{ano}_{mes}")
+                m.addGenConstrMax(self.FALTANTE_B[ano, mes], [self.T_B[ano, mes], self.CERO_CONSTANTE],
+                                name=f"FALT_B_pos_gap50_{ano}_{mes}")
+
+ 
                 
                 # Apoyo VRFI total limitado por disponibilidad y necesidad total. se gestiona el apoyo del VRFI hacia l A y B. Primero, se calcula la necesidad total sumando los faltantes individuales de A y B, y luego se define el apoyo total disponible como el mínimo entre el volumen libre del VRFI y esta necesidad total.
                 
@@ -464,8 +470,21 @@ class EmbalseNuevaPunilla:
 
     #  función objetivo
     def funcion_objetivo(self):
-        total_def = gp.quicksum(self.d_A[a,m] + self.d_B[a,m] for a in self.anos for m in self.meses)
-        self.model.setObjective(total_def, GRB.MINIMIZE)
+        # Parte variable (déficit interno vs demanda con FE)
+        total_def_vars = gp.quicksum(self.d_A[a,m] + self.d_B[a,m] for a in self.anos for m in self.meses)
+
+        # Término CONSTANTE: suma de extras por FE en todos los meses (demanda base, sin FE)
+        extra_const = 0.0
+        for ano in self.anos:
+            for mes in self.meses:
+                key = self.hidrologico_a_civil[mes]
+                DemA_base = (self.demanda_A_mensual[key] * self.num_acciones_A) / 1_000_000.0
+                DemB_base = (self.demanda_B_mensual[key] * self.num_acciones_B) / 1_000_000.0
+                extra_const += (1.0 - self.FEA) * DemA_base + (1.0 - self.FEB) * DemB_base
+
+        # Minimiza "déficit interno + extra por FE" (la extra es constante → no afecta la política óptima)
+        self.model.setObjective(total_def_vars + extra_const, GRB.MINIMIZE)
+
 
         
     def exportar_a_excel(self, filename="resultados_embalse.xlsx"):
@@ -537,10 +556,30 @@ class EmbalseNuevaPunilla:
         return df_principal, df_resumen
 
 
-    def exportar_a_txt(self, filename="reporte_embalse.txt"):
+    def exportar_a_txt(self, filename=None):
+        import os
+
         def barra20(pct):
             n = int(round(min(max(pct, 0), 100) / 5.0))
             return "█" * n + "·" * (20 - n)
+
+        # === Carpetas destino ===
+        BASE_DIR = "reportes_embalse"
+        HIST_DIR = os.path.join(BASE_DIR, "historicos")
+        os.makedirs(HIST_DIR, exist_ok=True)
+
+        # ===== Nombre de archivo único por intervalo/FE si no se entrega uno =====
+        if filename is None:
+            ini = self.anos[0].replace('/', '-')
+            fin = self.anos[-1].replace('/', '-')
+            auto = f"reporte_embalse_{ini}__{fin}_FEA{self.FEA:.2f}_FEB{self.FEB:.2f}.txt"
+            filename = os.path.join(HIST_DIR, auto)   # ⇐ históricos a /historicos
+        else:
+            looks_historic = filename.startswith("reporte_embalse_") and "__" in filename
+            target_dir = HIST_DIR if looks_historic else BASE_DIR
+            os.makedirs(target_dir, exist_ok=True)
+            if not os.path.isabs(filename):
+                filename = os.path.join(target_dir, filename)
 
         mes_tag = {1:'may', 2:'jun', 3:'jul', 4:'ago', 5:'sep', 6:'oct',
                 7:'nov', 8:'dic', 9:'ene', 10:'feb', 11:'mar', 12:'abr'}
@@ -551,177 +590,323 @@ class EmbalseNuevaPunilla:
         N_M  = 12
         TOT_PM = N_Y * N_M
 
-        Qturb_total_30y = 0.0
-        rebalse_total_30y = 0.0
-        qdis_total_30y  = 0.0
-        serv_total_30y  = 0.0
-        dem_total_30y   = 0.0
+        Qturb_total = 0.0
+        rebalse_total = 0.0
+        qdis_total  = 0.0
+        serv_total  = 0.0
+        dem_total   = 0.0
+
+        # Déficit del modelo (∑ d_A + d_B), déficit por FE, y total reportado
+        deficit_modelo_total = 0.0
+        deficit_por_FE_total = 0.0
+        deficit_total_periodo = 0.0  # = modelo + FE
 
         rebalse_prom_mes = {m: 0.0 for m in self.meses}
         qdis_prom_mes    = {m: 0.0 for m in self.meses}
         satisf_por_mes   = {}
 
+        # Promedios mensuales (modelo / FE / total)
+        deficit_prom_mes_modelo = {m: 0.0 for m in self.meses}
+        deficit_prom_mes_FE     = {m: 0.0 for m in self.meses}
+        deficit_prom_mes_total  = {m: 0.0 for m in self.meses}
+
+        # Volúmenes almacenados al fin de cada mes (promedio)
+        Vfin_VRFI_prom_mes = {m: 0.0 for m in self.meses}
+        Vfin_A_prom_mes    = {m: 0.0 for m in self.meses}
+        Vfin_B_prom_mes    = {m: 0.0 for m in self.meses}
+        Vfin_TOTAL_prom_mes= {m: 0.0 for m in self.meses}
+
         for mes in self.meses:
             serv_sum = 0.0
             dem_sum  = 0.0
             key_civil = self.hidrologico_a_civil[mes]
-            DemA_mes = (self.demanda_A_mensual[key_civil] * self.num_acciones_A * self.FEA) / 1_000_000.0
-            DemB_mes = (self.demanda_B_mensual[key_civil] * self.num_acciones_B * self.FEB) / 1_000_000.0
+
+            # Demanda BASE (sin FE)
+            DemA_base_mes = (self.demanda_A_mensual[key_civil] * self.num_acciones_A) / 1_000_000.0
+            DemB_base_mes = (self.demanda_B_mensual[key_civil] * self.num_acciones_B) / 1_000_000.0
+
+            # Demanda efectiva (con FE)
+            DemA_eff_mes = DemA_base_mes * self.FEA
+            DemB_eff_mes = DemB_base_mes * self.FEB
 
             for ano in self.anos:
-                Qturb_total_30y   += self.Q_turb[ano, mes].X
-                rebalse_total_30y += self.REBALSE_TOTAL[ano, mes].X
-                qdis_total_30y    += self.Q_dis[ano, mes].X
+                Qturb_total   += self.Q_turb[ano, mes].X
+                rebalse_total += self.REBALSE_TOTAL[ano, mes].X
+                qdis_total    += self.Q_dis[ano, mes].X
+
                 servA = self.Q_A[ano, mes].X + self.Q_A_apoyo[ano, mes].X
                 servB = self.Q_B[ano, mes].X + self.Q_B_apoyo[ano, mes].X
-                serv_sum += (servA + servB)
-                dem_sum  += (DemA_mes + DemB_mes)
+                serv_sum += (servA + servB)  # ← corregido aquí
+
+                dem_sum  += (DemA_eff_mes + DemB_eff_mes)
                 rebalse_prom_mes[mes] += self.REBALSE_TOTAL[ano, mes].X
                 qdis_prom_mes[mes]    += self.Q_dis[ano, mes].X
 
+                # Déficit del modelo
+                dA = self.d_A[ano, mes].X
+                dB = self.d_B[ano, mes].X
+                deficit_modelo_total += (dA + dB)
+                deficit_prom_mes_modelo[mes] += (dA + dB)
+
+                # Déficit adicional por FE
+                dA_FE = (1.0 - self.FEA) * DemA_base_mes
+                dB_FE = (1.0 - self.FEB) * DemB_base_mes
+                deficit_por_FE_total += (dA_FE + dB_FE)
+                deficit_prom_mes_FE[mes] += (dA_FE + dB_FE)
+
+                # Stocks fin de mes
+                Vfin_VRFI_prom_mes[mes] += self.V_VRFI[ano, mes].X
+                Vfin_A_prom_mes[mes]    += self.V_A[ano, mes].X
+                Vfin_B_prom_mes[mes]    += self.V_B[ano, mes].X
+
+            # Promedios sobre N_Y años
             rebalse_prom_mes[mes] /= N_Y
             qdis_prom_mes[mes]    /= N_Y
             satisf_por_mes[mes]    = (100.0 * serv_sum / dem_sum) if dem_sum > 0 else 100.0
-            serv_total_30y += serv_sum
-            dem_total_30y  += dem_sum
 
-        rebalse_prom_mensual_30y = rebalse_total_30y / TOT_PM
-        qdis_prom_mensual_30y    = qdis_total_30y  / TOT_PM
-        qdis_prom_total_30y      = qdis_total_30y  / TOT_PM
-        satisf_global_30y        = (100.0 * serv_total_30y / dem_total_30y) if dem_total_30y > 0 else 100.0
+            deficit_prom_mes_modelo[mes] /= N_Y
+            deficit_prom_mes_FE[mes]     /= N_Y
+            deficit_prom_mes_total[mes]   = deficit_prom_mes_modelo[mes] + deficit_prom_mes_FE[mes]
+
+            Vfin_VRFI_prom_mes[mes] /= N_Y
+            Vfin_A_prom_mes[mes]    /= N_Y
+            Vfin_B_prom_mes[mes]    /= N_Y
+            Vfin_TOTAL_prom_mes[mes] = Vfin_VRFI_prom_mes[mes] + Vfin_A_prom_mes[mes] + Vfin_B_prom_mes[mes]
+
+            serv_total += serv_sum
+            dem_total  += dem_sum
+
+        # Totales
+        qdis_prom_mensual = qdis_total / TOT_PM
+        satisf_global     = (100.0 * serv_total / dem_total) if dem_total > 0 else 100.0
 
         ultimo_ano = self.anos[-1]
         V_R_fin = self.V_VRFI[ultimo_ano, 12].X
         V_A_fin = self.V_A[ultimo_ano, 12].X
         V_B_fin = self.V_B[ultimo_ano, 12].X
-        V_total_fin_30y = V_R_fin + V_A_fin + V_B_fin
+        V_total_fin = V_R_fin + V_A_fin + V_B_fin
 
-        lineas.append("="*70)
-        lineas.append("RESUMEN 30 ANOS — AGREGADOS")
-        lineas.append("="*70)
-        lineas.append(f"Volumen turbinado TOTAL (30 anos): {Qturb_total_30y:,.1f} Hm³")
-        lineas.append(f"Rebalse TOTAL (30 anos): {rebalse_total_30y:,.1f} Hm³")
-        lineas.append(f"Rebalse PROMEDIO mensual (30 anos): {rebalse_prom_mensual_30y:,.2f} Hm³/mes")
-        lineas.append(f"Caudal disponible PROMEDIO mensual (30 anos): {qdis_prom_mensual_30y:,.2f} Hm³/mes")
-        lineas.append(f"Caudal disponible PROMEDIO (30 anos): {qdis_prom_total_30y:,.2f} Hm³/mes")
-        lineas.append(f"Satisfaccion ponderada PROMEDIO (30 anos): {satisf_global_30y:6.2f}%")
+        deficit_total_periodo = deficit_modelo_total + deficit_por_FE_total
+
+        # ===== Encabezado resumen =====
+        lineas.append("="*78)
+        lineas.append(f"RESUMEN DEL INTERVALO — {self.anos[0]} → {self.anos[-1]}")
+        lineas.append("="*78)
+        lineas.append(f"FEA={self.FEA:.3f} | FEB={self.FEB:.3f}")
+        lineas.append(f"Volumen turbinado TOTAL (intervalo): {Qturb_total:,.1f} Hm³")
+        lineas.append(f"Rebalse TOTAL (intervalo): {rebalse_total:,.1f} Hm³")
+        lineas.append(f"Déficit del MODELO (∑d_A+d_B): {deficit_modelo_total:,.1f} Hm³")
+        lineas.append(f"Déficit por FE agregado: {deficit_por_FE_total:,.1f} Hm³")
+        lineas.append(f"Déficit TOTAL reportado: {deficit_total_periodo:,.1f} Hm³")
+        lineas.append(f"Caudal disponible PROMEDIO mensual: {qdis_prom_mensual:,.2f} Hm³/mes")
+        lineas.append(f"Satisfacción ponderada PROMEDIO: {satisf_global:6.2f}%")
         lineas.append("")
-        lineas.append("Promedios mensuales sobre 30 anos:")
+
+        # ===== Promedios mensuales =====
+        lineas.append("Promedios mensuales sobre el intervalo:")
         lineas.append("Mes   Rebalse prom [Hm³/mes]   Q_dis prom [Hm³/mes]   %Satisfaccion (ponderada)")
         lineas.append("-"*70)
         for mes in self.meses:
             lineas.append(f"{mes_tag[mes]:<4}  {rebalse_prom_mes[mes]:10.2f}                {qdis_prom_mes[mes]:10.2f}                {satisf_por_mes[mes]:6.2f}%")
         lineas.append("")
-        lineas.append("Agua almacenada al final de los 30 anos (fin del ultimo periodo):")
-        lineas.append(f"  VRFI: {V_R_fin:.1f} Hm³   A: {V_A_fin:.1f} Hm³   B: {V_B_fin:.1f} Hm³   TOTAL: {V_total_fin_30y:.1f} Hm³")
-        lineas.append("")
 
-        for ano in self.anos:
-            y = int(ano.split('/')[0])
-            lineas.append("="*37)
-            lineas.append(f"REPORTE ANUAL: {ano}  (mes a mes)")
-            lineas.append("="*37)
-            lineas.append("Tabla 1 — Fisica del sistema (volumenes en Hm³; caudales en m³/s y Qin/QPD en Hm³/mes)")
-            encabezado1 = ("Mes   Qin     Qin_m    QPD     QPD_m    IN_R     INA      INB      EB       "
-                        "Motivo_EB        VRFI prev→fin         A prev→fin        B prev→fin        "
-                        "VRFI %p→f     A %p→f      B %p→f      CHEQ    |  Stocks fin  ")
-            lineas.append(encabezado1)
-            lineas.append("-"*230)
-
-            for i, mes in enumerate(self.meses):
-                seg = self.segundos_por_mes[mes]
-                Qin_m3s = self.caudal_afluente.get((y, mes), 0.0)
-                Qin_Hm3 = Qin_m3s * seg / 1_000_000.0
-                QPD_m3s = self.QPD_eff[ano, mes]
-                QPD_Hm3 = QPD_m3s * seg / 1_000_000.0
-                IN_R = self.IN_VRFI[ano, mes].X
-                INA  = self.IN_A[ano, mes].X
-                INB  = self.IN_B[ano, mes].X
-                EB   = self.REBALSE_TOTAL[ano, mes].X
-
-                if i == 0:
-                    prev_ano = f"{y-1}/{y}"
-                    V_R_prev = self.V_VRFI[prev_ano, 12].X if prev_ano in self.anos else self.VRFI_init
-                    V_A_prev = self.V_A[prev_ano, 12].X    if prev_ano in self.anos else self.VA_init
-                    V_B_prev = self.V_B[prev_ano, 12].X    if prev_ano in self.anos else self.VB_init
-                else:
-                    V_R_prev = self.V_VRFI[ano, mes-1].X
-                    V_A_prev = self.V_A[ano, mes-1].X
-                    V_B_prev = self.V_B[ano, mes-1].X
-
-                V_R_fin_m = self.V_VRFI[ano, mes].X
-                V_A_fin_m = self.V_A[ano, mes].X
-                V_B_fin_m = self.V_B[ano, mes].X
-
-                pct_R_prev = (V_R_prev / self.C_VRFI  * 100) if self.C_VRFI  > 0 else 0
-                pct_R_fin  = (V_R_fin_m / self.C_VRFI * 100) if self.C_VRFI  > 0 else 0
-                pct_A_prev = (V_A_prev / self.C_TIPO_A * 100) if self.C_TIPO_A > 0 else 0
-                pct_A_fin  = (V_A_fin_m / self.C_TIPO_A * 100) if self.C_TIPO_A > 0 else 0
-                pct_B_prev = (V_B_prev / self.C_TIPO_B * 100) if self.C_TIPO_B > 0 else 0
-                pct_B_fin  = (V_B_fin_m / self.C_TIPO_B * 100) if self.C_TIPO_B > 0 else 0
-
-                motivo  = "-"
-
-                barR = barra20(pct_R_fin)
-                barA = barra20(pct_A_fin)
-                barB = barra20(pct_B_fin)
-
-                fila1 = (f"{mes_tag[mes]:<4} "
-                        f"{Qin_m3s:6.2f}  {Qin_Hm3:7.1f}  "
-                        f"{QPD_m3s:6.2f}  {QPD_Hm3:7.1f}  "
-                        f"{IN_R:7.1f}  {INA:7.1f}  {INB:7.1f}  {EB:7.1f}  "
-                        f"{motivo:<24}  "
-                        f"{V_R_prev:5.1f}→{V_R_fin_m:<5.1f}      "
-                        f"{V_A_prev:5.1f}→{V_A_fin_m:<5.1f}    "
-                        f"{V_B_prev:5.1f}→{V_B_fin_m:<5.1f}    "
-                        f"{pct_R_prev:3.0f}→{pct_R_fin:<3.0f}%     "
-                        f"{pct_A_prev:3.0f}→{pct_A_fin:<3.0f}%   "
-                        f"{pct_B_prev:3.0f}→{pct_B_fin:<3.0f}%     "
-                        f" |  VRFI[{V_R_fin_m:6.1f}] {barR}  "
-                        f"A[{V_A_fin_m:6.1f}] {barA}  "
-                        f"B[{V_B_fin_m:6.1f}] {barB}")
-                lineas.append(fila1)
-
-            lineas.append("")
-            lineas.append("Tabla 2 — Servicio (Hm³/mes) + SSR (Hm³) + Qturb (Hm³)")
-            encabezado2 = ("Mes   DemA*FE    ServA     dA      DemB*FE    ServB     dB      Q_SSR    "
-                        "A_out    VRFI→A    B_out    VRFI→B   VRFI_avail  FALTANTE_TOTAL  APOYO_TOTAL   Qturb")
-            lineas.append(encabezado2)
-            lineas.append("-"*160)
-
-            for i, mes in enumerate(self.meses):
-                key = self.hidrologico_a_civil[mes]
-                DemA = (self.demanda_A_mensual[key] * self.num_acciones_A * self.FEA) / 1_000_000.0
-                DemB = (self.demanda_B_mensual[key] * self.num_acciones_B * self.FEB) / 1_000_000.0
-                ServA = self.Q_A[ano, mes].X + self.Q_A_apoyo[ano, mes].X
-                ServB = self.Q_B[ano, mes].X + self.Q_B_apoyo[ano, mes].X
-                dA    = self.d_A[ano, mes].X
-                dB    = self.d_B[ano, mes].X
-                Q_SSR = self.Q_CONSUMO_HUMANO[ano, mes].X
-                A_out = self.Q_A[ano, mes].X
-                B_out = self.Q_B[ano, mes].X
-                VA    = self.Q_A_apoyo[ano, mes].X
-                VB    = self.Q_B_apoyo[ano, mes].X
-                Qturb = self.Q_turb[ano, mes].X
-                VRFIa = self.VRFI_DISPONIBLE_LIBRE[ano, mes].X
-                needT = self.FALTANTE_TOTAL[ano, mes].X
-                supT  = self.APOYO_TOTAL[ano, mes].X
-
-                fila2 = (f"{mes_tag[mes]:<4} "
-                        f"{DemA:8.1f}   {ServA:6.1f}   {dA:6.1f}   "
-                        f"{DemB:8.1f}   {ServB:6.1f}   {dB:6.1f}   "
-                        f"{Q_SSR:6.1f}   "
-                        f"{A_out:6.1f}    {VA:6.1f}     {B_out:6.1f}    {VB:6.1f}   "
-                        f"{VRFIa:8.1f}   {needT:7.1f}    {supT:9.1f}   "
-                        f"{Qturb:6.1f}")
-                lineas.append(fila2)
-
-            lineas.append("")
-
+        # ===== Guardar reporte =====
         with open(filename, "w", encoding="utf-8") as f:
             f.write("\n".join(lineas))
+
+        print("[RESUMEN]",
+            f"{self.anos[0]}→{self.anos[-1]}",
+            f"FEA={self.FEA:.2f} FEB={self.FEB:.2f} |",
+            f"d_modelo={deficit_modelo_total:.2f} Hm3 | d_FE={deficit_por_FE_total:.2f} Hm3 |",
+            f"d_total={deficit_total_periodo:.2f} Hm3 | Qturb={Qturb_total:.2f} Hm3 |",
+            f"Rebalse={rebalse_total:.2f} Hm3 | Qdis_prom={qdis_prom_mensual:.2f} Hm3/mes |",
+            f"Satisf_prom={satisf_global:.2f}%")
+
         print(f"Reporte TXT escrito en {filename}")
         return filename
+
+
+
+        
+        # === NUEVO: bloque de texto sólo con el resumen de un intervalo ya resuelto ===
+    def _texto_resumen_intervalo(self, titulo_iter, anos_intervalo):
+        """
+        Devuelve un string con el bloque de texto compacto del intervalo:
+        cabecera, KPIs del intervalo, tablas de promedios mensuales
+        incluyendo el déficit por FE, y 'agua almacenada al final del intervalo'.
+        Debe llamarse después de emb.solve() para que .X tenga valores.
+        """
+        assert set(anos_intervalo) == set(self.anos), \
+            "Este Embalse debe haberse resuelto con exactamente este subrango de anos."
+
+        mes_tag = {1:'may', 2:'jun', 3:'jul', 4:'ago', 5:'sep', 6:'oct',
+                7:'nov', 8:'dic', 9:'ene', 10:'feb', 11:'mar', 12:'abr'}
+
+        lineas = []
+        lineas.append("="*78)
+        lineas.append(titulo_iter)
+        lineas.append("-"*78)
+        lineas.append(f"FEA={self.FEA:.3f} | FEB={self.FEB:.3f}")
+        lineas.append(f"VRFI0={self.VRFI_init:.2f} Hm³ | A0={self.VA_init:.2f} Hm³ | B0={self.VB_init:.2f} Hm³")
+        lineas.append("="*78)
+
+        # --- KPIs del intervalo ---
+        N_Y = len(anos_intervalo)
+        TOT_PM = N_Y * 12
+
+        Qturb_total = 0.0
+        rebalse_total = 0.0
+        qdis_total = 0.0
+
+        # Déficits
+        deficit_modelo_total = 0.0    # ∑ d_A + d_B (lo que minimiza la FO)
+        deficit_por_FE_total = 0.0    # ∑ [(1−FEA)*DemA_base + (1−FEB)*DemB_base] por mes y año
+        serv_total = 0.0
+        dem_total  = 0.0  # demanda efectiva (con FE) para % satisfacción
+
+        # Para tablas de promedios mensuales
+        rebalse_prom_mes = {m: 0.0 for m in self.meses}
+        qdis_prom_mes    = {m: 0.0 for m in self.meses}
+        satisf_por_mes   = {}
+
+        # Nuevas columnas: déficit promedio mensual desglosado
+        d_modelo_prom_mes = {m: 0.0 for m in self.meses}
+        d_FE_prom_mes     = {m: 0.0 for m in self.meses}
+        d_total_prom_mes  = {m: 0.0 for m in self.meses}
+
+        # Stocks fin de mes promedio
+        vrfi_fin_prom = {m: 0.0 for m in self.meses}
+        a_fin_prom    = {m: 0.0 for m in self.meses}
+        b_fin_prom    = {m: 0.0 for m in self.meses}
+
+        for mes in self.meses:
+            serv_sum_mes = 0.0
+            dem_sum_mes  = 0.0
+
+            # Demanda BASE (sin FE) — para castigo FE
+            key_civil = self.hidrologico_a_civil[mes]
+            DemA_base_mes = (self.demanda_A_mensual[key_civil] * self.num_acciones_A) / 1_000_000.0
+            DemB_base_mes = (self.demanda_B_mensual[key_civil] * self.num_acciones_B) / 1_000_000.0
+
+            # Demanda efectiva (con FE) — para satisfacción
+            DemA_eff_mes = DemA_base_mes * self.FEA
+            DemB_eff_mes = DemB_base_mes * self.FEB
+
+            # Déficit por FE de este mes (constante por año dentro de la tanda si FE es fijo)
+            d_FE_mes = (1.0 - self.FEA) * DemA_base_mes + (1.0 - self.FEB) * DemB_base_mes
+
+            for ano in anos_intervalo:
+                # Agregados físicos
+                Qturb_total   += self.Q_turb[ano, mes].X
+                rebalse_val    = self.REBALSE_TOTAL[ano, mes].X
+                qdis_val       = self.Q_dis[ano, mes].X
+                rebalse_total += rebalse_val
+                qdis_total    += qdis_val
+
+                # Déficit del modelo
+                dA = self.d_A[ano, mes].X
+                dB = self.d_B[ano, mes].X
+                deficit_modelo_total += (dA + dB)
+                d_modelo_prom_mes[mes] += (dA + dB)
+
+                # Déficit por FE (se suma por cada año del intervalo)
+                deficit_por_FE_total += d_FE_mes
+                d_FE_prom_mes[mes]   += d_FE_mes
+
+                # Servicio y demanda efectiva (para % satisfacción)
+                ServA = self.Q_A[ano, mes].X + self.Q_A_apoyo[ano, mes].X
+                ServB = self.Q_B[ano, mes].X + self.Q_B_apoyo[ano, mes].X
+                serv_sum_mes += (ServA + ServB)
+                dem_sum_mes  += (DemA_eff_mes + DemB_eff_mes)
+
+                # Promedios mensuales (acumular para luego dividir por N_Y)
+                rebalse_prom_mes[mes] += rebalse_val
+                qdis_prom_mes[mes]    += qdis_val
+                vrfi_fin_prom[mes]    += self.V_VRFI[ano, mes].X
+                a_fin_prom[mes]       += self.V_A[ano, mes].X
+                b_fin_prom[mes]       += self.V_B[ano, mes].X
+
+            # Promedios sobre N_Y años
+            rebalse_prom_mes[mes] /= N_Y
+            qdis_prom_mes[mes]    /= N_Y
+            d_modelo_prom_mes[mes] /= N_Y
+            d_FE_prom_mes[mes]     /= N_Y
+            d_total_prom_mes[mes]   = d_modelo_prom_mes[mes] + d_FE_prom_mes[mes]
+            vrfi_fin_prom[mes]     /= N_Y
+            a_fin_prom[mes]        /= N_Y
+            b_fin_prom[mes]        /= N_Y
+            satisf_por_mes[mes]     = (100.0 * serv_sum_mes / dem_sum_mes) if dem_sum_mes > 0 else 100.0
+
+            serv_total += serv_sum_mes
+            dem_total  += dem_sum_mes
+
+        qdis_prom_mensual_intervalo = qdis_total / TOT_PM
+        satisf_global_intervalo     = (100.0 * serv_total / dem_total) if dem_total > 0 else 100.0
+
+        deficit_total_intervalo = deficit_modelo_total + deficit_por_FE_total
+
+        # rango textual del intervalo
+        rango_txt = f"{anos_intervalo[0]} \u2192 {anos_intervalo[-1]}"
+
+        lineas.append("")
+        lineas.append("="*70)
+        lineas.append(f"RESUMEN DEL INTERVALO — {rango_txt}")
+        lineas.append("="*70)
+        lineas.append(f"Volumen turbinado TOTAL (intervalo): {Qturb_total:,.1f} Hm³")
+        lineas.append(f"Rebalse TOTAL (intervalo): {rebalse_total:,.1f} Hm³")
+        lineas.append(f"Déficit del MODELO (∑d_A+d_B): {deficit_modelo_total:,.1f} Hm³")
+        lineas.append(f"Déficit por FE agregado: {deficit_por_FE_total:,.1f} Hm³")
+        lineas.append(f"Déficit TOTAL (modelo + FE): {deficit_total_intervalo:,.1f} Hm³")
+        lineas.append(f"Caudal disponible PROMEDIO mensual (intervalo): {qdis_prom_mensual_intervalo:,.2f} Hm³/mes")
+        lineas.append(f"Satisfacción ponderada PROMEDIO (intervalo): {satisf_global_intervalo:6.2f}%")
+        lineas.append("")
+
+        # Tabla 1 — promedios mensuales
+        lineas.append("Promedios mensuales sobre el intervalo:")
+        lineas.append("Mes   Rebalse prom [Hm³/mes]   Q_dis prom [Hm³/mes]   %Satisfaccion (ponderada)")
+        lineas.append("-"*70)
+        for mes in self.meses:
+            lineas.append(
+                f"{mes_tag[mes]:<4}  "
+                f"{rebalse_prom_mes[mes]:10.2f}                "
+                f"{qdis_prom_mes[mes]:10.2f}                "
+                f"{satisf_por_mes[mes]:6.2f}%"
+            )
+        lineas.append("")
+
+        # Tabla 2 — déficit (modelo/FE/total) y stocks fin de mes (promedios)
+        lineas.append("Promedios mensuales — Déficit (modelo / FE / total) y Volumen almacenado al fin de mes")
+        lineas.append("Mes   d_modelo [Hm³/mes]   d_FE [Hm³/mes]   d_total [Hm³/mes]   VRFI fin prom   A fin prom   B fin prom   TOTAL fin prom [Hm³]")
+        lineas.append("-"*110)
+        for mes in self.meses:
+            total_fin = vrfi_fin_prom[mes] + a_fin_prom[mes] + b_fin_prom[mes]
+            lineas.append(
+                f"{mes_tag[mes]:<4}  "
+                f"{d_modelo_prom_mes[mes]:9.2f}           "
+                f"{d_FE_prom_mes[mes]:9.2f}      "
+                f"{d_total_prom_mes[mes]:9.2f}        "
+                f"{vrfi_fin_prom[mes]:12.2f}   "
+                f"{a_fin_prom[mes]:10.2f}   "
+                f"{b_fin_prom[mes]:10.2f}   "
+                f"{total_fin:16.2f}"
+            )
+        lineas.append("")
+
+        # Agua almacenada al final del último mes del intervalo
+        ultimo_ano = anos_intervalo[-1]
+        V_R_fin = self.V_VRFI[ultimo_ano, 12].X
+        V_A_fin = self.V_A[ultimo_ano, 12].X
+        V_B_fin = self.V_B[ultimo_ano, 12].X
+        total_fin = V_R_fin + V_A_fin + V_B_fin
+
+        lineas.append(f"Agua almacenada al final del intervalo (fin del último periodo):")
+        lineas.append(f"  VRFI: {V_R_fin:.1f} Hm³   A: {V_A_fin:.1f} Hm³   B: {V_B_fin:.1f} Hm³   TOTAL: {total_fin:.1f} Hm³")
+        lineas.append("")
+
+        return "\n".join(lineas)
+
+
+
 
 
     def solve(self):
@@ -736,6 +921,23 @@ class EmbalseNuevaPunilla:
             if self.model.status == GRB.INFEASIBLE:
                 self.model.computeIIS()
                 self.model.write("modelo.ilp")   
+                # Dump detallado del IIS para ver nombres
+                self.model.write("modelo_IIS.ilp")   # versión IIS (muy útil)
+                self.model.write("modelo_IIS.lp")    # legible a ojo
+
+                # También imprime en consola los elementos marcados en el IIS
+                print("=== IIS: restricciones lineales ===")
+                for c in self.model.getConstrs():
+                    if c.IISConstr:
+                        print(c.ConstrName)
+
+                print("=== IIS: variables con bounds en conflicto ===")
+                for v in self.model.getVars():
+                    if v.IISLB:
+                        print(f"LB en conflicto: {v.VarName}, LB={v.LB}")
+                    if v.IISUB:
+                        print(f"UB en conflicto: {v.VarName}, UB={v.UB}")
+
                 return None
 
             if self.model.status in (GRB.OPTIMAL, GRB.SUBOPTIMAL):
@@ -755,3 +957,100 @@ class EmbalseNuevaPunilla:
         sol['txt_file'] = txt_file
         return sol
             
+# === NUEVO: utilidades para dividir en bloques e imprimir resúmenes compactos ===
+
+FULL_ANOS_30 = ['1989/1990','1990/1991','1991/1992','1992/1993','1993/1994',
+                '1994/1995','1995/1996','1996/1997','1997/1998','1998/1999',
+                '1999/2000','2000/2001','2001/2002','2002/2003','2003/2004',
+                '2004/2005','2005/2006','2006/2007','2007/2008','2008/2009',
+                '2009/2010','2010/2011','2011/2012','2012/2013','2013/2014',
+                '2014/2015','2015/2016','2016/2017','2017/2018','2018/2019']
+
+def _split_in_equal_blocks(seq, block_len):
+    assert len(seq) % block_len == 0, "30 años debe ser múltiplo del bloque solicitado."
+    return [seq[i:i+block_len] for i in range(0, len(seq), block_len)]
+
+def run_sensitivity_brief_fixed_inits(
+    period_years: int,
+    FEA: float = 1.0,
+    FEB: float = 1.0,
+    VRFI_init: float = 0.0,
+    VA_init: float = 0.0,
+    VB_init: float = 0.0,
+    basename: str = None
+):
+    """
+    Corre intervalos de 'period_years' y genera UN archivo con SOLO el resumen
+    (la sección que pegaste de ejemplo) concatenando cada intervalo.
+    Usa siempre los mismos FEA/FEB y volúmenes iniciales en cada iteración
+    (se resetean en cada bloque).
+    """
+    assert period_years in (5, 10, 15), "Solo periodos de 5, 10 o 15 años."
+    blocks = _split_in_equal_blocks(FULL_ANOS_30, period_years)
+
+    if basename is None:
+        basename = f"resumen_{period_years}y_FEA{FEA:.2f}_FEB{FEB:.2f}_V{VRFI_init:.1f}-{VA_init:.1f}-{VB_init:.1f}.txt"
+
+    out_lines = []
+    out_lines.append("="*78)
+    out_lines.append(f"RESÚMENES COMPACTOS — INTERVALOS DE {period_years} AÑOS")
+    out_lines.append("="*78)
+    out_lines.append(f"Factores fijos: FEA={FEA:.3f} | FEB={FEB:.3f}")
+    out_lines.append(f"Volúmenes iniciales fijos: VRFI={VRFI_init:.2f} Hm³ | A={VA_init:.2f} Hm³ | B={VB_init:.2f} Hm³")
+    out_lines.append("")
+
+    for k, anos_k in enumerate(blocks, start=1):
+        # Instancia limpia por intervalo
+        emb = EmbalseNuevaPunilla()
+        emb.anos = anos_k[:]    # limitar al subrango
+        emb.FEA  = FEA
+        emb.FEB  = FEB
+        emb.VRFI_init = VRFI_init
+        emb.VA_init   = VA_init
+        emb.VB_init   = VB_init
+
+        # Resolver
+        sol = emb.solve()
+        if sol is None or sol.get('status', None) not in (GRB.OPTIMAL, GRB.SUBOPTIMAL):
+            out_lines.append(f"[Iteración {k}] **No se obtuvo solución óptima/subóptima en {anos_k[0]}→{anos_k[-1]}**")
+            out_lines.append("")
+            continue
+
+        titulo = f"ITERACIÓN {k} — Intervalo {anos_k[0]} → {anos_k[-1]}"
+        out_lines.append(emb._texto_resumen_intervalo(titulo, anos_k))
+        out_lines.append("")
+
+    with open(basename, "w", encoding="utf-8") as f:
+        f.write("\n".join(out_lines))
+
+    print(f"Archivo de resúmenes escrito en: {basename}")
+    return basename
+
+def run_sensitivity_brief_suite(
+    FEA: float = 1.0,
+    FEB: float = 1.0,
+    VRFI_init: float = 0.0,
+    VA_init: float = 0.0,
+    VB_init: float = 0.0
+):
+    """
+    Ejecuta y genera tres archivos:
+      - 6 intervalos de 5 años  -> resumen_5y_*.txt
+      - 3 intervalos de 10 años -> resumen_10y_*.txt
+      - 2 intervalos de 15 años -> resumen_15y_*.txt
+    """
+    f5  = run_sensitivity_brief_fixed_inits(5,  FEA, FEB, VRFI_init, VA_init, VB_init)
+    f10 = run_sensitivity_brief_fixed_inits(10, FEA, FEB, VRFI_init, VA_init, VB_init)
+    f15 = run_sensitivity_brief_fixed_inits(15, FEA, FEB, VRFI_init, VA_init, VB_init)
+    return {"5y": f5, "10y": f10, "15y": f15}
+
+
+if __name__ == "__main__":
+    # Ajusta FEA/FEB o volúmenes iniciales si quieres
+    run_sensitivity_brief_suite(
+        FEA=0.9, FEB=0.9,
+        VRFI_init=0.0, VA_init=0.0, VB_init=0.0
+    )
+
+    # Si quieres solo una familia (por ejemplo, 6 de 5 años):
+    # run_sensitivity_brief_fixed_inits(5, FEA=1.0, FEB=1.0, VRFI_init=0.0, VA_init=0.0, VB_init=0.0)
