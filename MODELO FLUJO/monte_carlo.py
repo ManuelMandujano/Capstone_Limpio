@@ -1,19 +1,19 @@
-# monte_carlo.py
 import numpy as np
 import pandas as pd
 import gurobipy as gp
 from gurobipy import GRB
 from datetime import datetime
 
-# Este codigo basicamente utiliza el mismo modelo que modelito2.py, pero adaptado para correr simulaciones de Monte Carlo
-# en donde la idea es correr N simulaciones, cada una con un escenario aleatorio de años seleccionados sin reemplazo para
-# simular diferentes condiciones hidrológicas y asi ver incertidumbre en resultados.
-
 class MonteCarloEmbalse:
     
-    def __init__(self, num_simulaciones=100, duracion_anos=30):
+    def __init__(self, num_simulaciones=100, duracion_anos=30, acumular_ssr=True, 
+                 VRFI_init=0.0, VA_init=0.0, VB_init=0.0):
         self.num_simulaciones = num_simulaciones
         self.duracion_anos = duracion_anos
+        self.acumular_ssr = acumular_ssr
+        self.VRFI_init = VRFI_init
+        self.VA_init = VA_init
+        self.VB_init = VB_init
         
         self.anos_disponibles = [
             '1989/1990', '1990/1991', '1991/1992', '1992/1993', '1993/1994',
@@ -23,7 +23,12 @@ class MonteCarloEmbalse:
             '2009/2010', '2010/2011', '2011/2012', '2012/2013', '2013/2014',
             '2014/2015', '2015/2016', '2016/2017', '2017/2018', '2018/2019'
         ]
-        
+
+        self.anos_humedos = ['1997/1998', '2002/2003', '1993/1994', '2006/2007', '1992/1993', '2001/2002', '2005/2006', '1991/1992']
+        self.anos_secos = ['1998/1999', '2016/2017', '2010/2011', '1996/1997', '2007/2008', '2012/2013', '1990/1991', '1989/1990']
+        self.anos_mixtos_extremos = ['1997/1998', '2002/2003', '1993/1994', '2006/2007', '1992/1993', '2001/2002', '2005/2006', '1991/1992',
+                                     '1998/1999', '2016/2017', '2010/2011', '1996/1997', '2007/2008', '2012/2013', '1990/1991', '1989/1990']
+
         self.resultados_simulaciones = []
         self._cargar_datos_base()
         
@@ -65,7 +70,6 @@ class MonteCarloEmbalse:
                 except Exception:
                     pass
     
-
     def generar_escenario(self):
         anos_disponibles = self.anos_disponibles.copy()
         escenario = []
@@ -75,14 +79,13 @@ class MonteCarloEmbalse:
             anos_disponibles.remove(ano_seleccionado)
         return escenario
     
-
-    def ejecutar_simulacion(self, num_sim, anos_escenario):
+    def ejecutar_simulacion(self, num_sim, anos_escenario, FEA=1.0, FEB=1.0):
         print(f"\n{'='*60}")
         print(f"Ejecutando Simulacion #{num_sim + 1}/{self.num_simulaciones}")
         print(f"Primeros 5 años: {anos_escenario[:5]}")
         print(f"{'='*60}")
         try:
-            resultado = self._resolver_modelo_montecarlo(anos_escenario)
+            resultado = self._resolver_modelo_montecarlo(anos_escenario, FEA=FEA, FEB=FEB)
             if resultado is not None:
                 resultado['num_simulacion'] = num_sim + 1
                 resultado['escenario_anos'] = ','.join(anos_escenario)
@@ -98,16 +101,15 @@ class MonteCarloEmbalse:
             traceback.print_exc()
             return None
     
-    def _resolver_modelo_montecarlo(self, anos_escenario):
+    def _resolver_modelo_montecarlo(self, anos_escenario, FEA=1.0, FEB=1.0):
         model = gp.Model("MC_Embalse")
         model.setParam('OutputFlag', 1)
         
-        # Parametros
         C_VRFI = 175
         C_TIPO_A = 260
         C_TIPO_B = 105
         V_C_H = 3.9
-        RESERVA_MIN_VRFI = 1.5  
+        RESERVA_MIN_VRFI = 2.275
         
         segundos_por_mes = {
             1: 31*24*3600, 2: 30*24*3600, 3: 31*24*3600, 4: 31*24*3600,
@@ -126,7 +128,6 @@ class MonteCarloEmbalse:
         
         meses = list(range(1, 13))
         
-        # Variables
         V_VRFI = model.addVars(anos_escenario, meses, name="V_VRFI", lb=0, ub=C_VRFI)
         V_A = model.addVars(anos_escenario, meses, name="V_A", lb=0, ub=C_TIPO_A)
         V_B = model.addVars(anos_escenario, meses, name="V_B", lb=0, ub=C_TIPO_B)
@@ -146,7 +147,6 @@ class MonteCarloEmbalse:
         d_B = model.addVars(anos_escenario, meses, name="d_B", lb=0)
         Q_turb = model.addVars(anos_escenario, meses, name="Q_turb", lb=0)
         
-        # Variables auxiliares
         Rem = model.addVars(anos_escenario, meses, name="Rem", lb=0)
         ESPACIO_VRFI = model.addVars(anos_escenario, meses, name="ESPACIO_VRFI", lb=0)
         ESPACIO_A = model.addVars(anos_escenario, meses, name="ESPACIO_A", lb=0)
@@ -175,13 +175,11 @@ class MonteCarloEmbalse:
         FALTANTE_TOTAL = model.addVars(anos_escenario, meses, name="FALTANTE_TOTAL", lb=0)
         APOYO_TOTAL = model.addVars(anos_escenario, meses, name="APOYO_TOTAL", lb=0)
         
-        # Variables para el SSR con backlog
         SSR_ACUMULADO = model.addVars(anos_escenario, meses, name="SSR_ACUMULADO", lb=0)
         SSR_EXIGIDO = model.addVars(anos_escenario, meses, name="SSR_EXIGIDO", lb=0)
         SSR_CAPACIDAD_VARIABLE = model.addVars(anos_escenario, meses, name="SSR_CAPACIDAD_VARIABLE", lb=0)
         VRFI_DISPONIBLE_LIBRE = model.addVars(anos_escenario, meses, name="VRFI_DISPONIBLE_LIBRE", lb=0)
         
-        # Variables para el reparto 71/29 
         PROPORCION_A = model.addVars(anos_escenario, meses, name="PROPORCION_A")
         PROPORCION_B = model.addVars(anos_escenario, meses, name="PROPORCION_B")
         ASIGNACION_A_BASE = model.addVars(anos_escenario, meses, name="ASIGNACION_A_BASE", lb=0)
@@ -193,7 +191,6 @@ class MonteCarloEmbalse:
         EXTRA_HACIA_A = model.addVars(anos_escenario, meses, name="EXTRA_HACIA_A", lb=0)
         EXTRA_HACIA_B = model.addVars(anos_escenario, meses, name="EXTRA_HACIA_B", lb=0)
 
-        # QPD efectivo
         QPD_eff = {}
         for año in anos_escenario:
             y = int(año.split('/')[0])
@@ -206,11 +203,10 @@ class MonteCarloEmbalse:
         
         ssr_mes = V_C_H / 12.0
 
-        # Restricciones
         primer_ano = anos_escenario[0]
-        model.addConstr(V_VRFI[primer_ano, 1] == 0, name="init_VRFI")
-        model.addConstr(V_A[primer_ano, 1] == 0, name="init_VA")
-        model.addConstr(V_B[primer_ano, 1] == 0, name="init_VB")
+        model.addConstr(V_VRFI[primer_ano, 1] == self.VRFI_init, name="init_VRFI")
+        model.addConstr(V_A[primer_ano, 1] == self.VA_init, name="init_VA")
+        model.addConstr(V_B[primer_ano, 1] == self.VB_init, name="init_VB")
         
         for idx_ano, año in enumerate(anos_escenario):
             y = int(año.split('/')[0])
@@ -225,7 +221,6 @@ class MonteCarloEmbalse:
                 demA = (DA_a_m[key] * num_A) / 1_000_000.0
                 demB = (DB_a_b[key] * num_B) / 1_000_000.0
                 
-                # Stocks previos menos los consecutivos entre años
                 if i == 0:  
                     if idx_ano == 0:  
                         V_R_prev = 0
@@ -241,29 +236,32 @@ class MonteCarloEmbalse:
                     V_A_prev = V_A[año, mes-1]
                     V_B_prev = V_B[año, mes-1]
                 
-                if i == 0:
-                    if idx_ano == 0:
-                        backlog_prev = 0
-                    else:
-                        año_anterior = anos_escenario[idx_ano - 1]
-                        backlog_prev = SSR_ACUMULADO[año_anterior, 12]
-                else: 
-                    backlog_prev = SSR_ACUMULADO[año, mes-1]
+                if self.acumular_ssr:
+                    if i == 0:
+                        if idx_ano == 0:
+                            backlog_prev = 0
+                        else:
+                            año_anterior = anos_escenario[idx_ano - 1]
+                            backlog_prev = SSR_ACUMULADO[año_anterior, 12]
+                    else: 
+                        backlog_prev = SSR_ACUMULADO[año, mes-1]
 
-                # Deuda ssr del mes
-                model.addConstr(SSR_EXIGIDO[año, mes] == ssr_mes + backlog_prev)
-                model.addConstr(SSR_CAPACIDAD_VARIABLE[año, mes] == V_R_prev + IN_VRFI[año, mes])
-
-                # Prioridad ssr
-                model.addGenConstrMin(
-                    Q_CONSUMO_HUMANO[año, mes],
-                    [SSR_EXIGIDO[año, mes], SSR_CAPACIDAD_VARIABLE[año, mes]]
-                )
-
-                # Actualizar con ssr
-                model.addConstr(SSR_ACUMULADO[año, mes] == SSR_EXIGIDO[año, mes] - Q_CONSUMO_HUMANO[año, mes])
+                    model.addConstr(SSR_EXIGIDO[año, mes] == ssr_mes + backlog_prev)
+                    model.addConstr(SSR_CAPACIDAD_VARIABLE[año, mes] == V_R_prev + IN_VRFI[año, mes])
+                    model.addGenConstrMin(
+                        Q_CONSUMO_HUMANO[año, mes],
+                        [SSR_EXIGIDO[año, mes], SSR_CAPACIDAD_VARIABLE[año, mes]]
+                    )
+                    model.addConstr(SSR_ACUMULADO[año, mes] == SSR_EXIGIDO[año, mes] - Q_CONSUMO_HUMANO[año, mes])
+                else:
+                    model.addConstr(SSR_EXIGIDO[año, mes] == ssr_mes)
+                    model.addConstr(SSR_CAPACIDAD_VARIABLE[año, mes] == V_R_prev + IN_VRFI[año, mes])
+                    model.addGenConstrMin(
+                        Q_CONSUMO_HUMANO[año, mes],
+                        [SSR_EXIGIDO[año, mes], SSR_CAPACIDAD_VARIABLE[año, mes]]
+                    )
+                    model.addConstr(SSR_ACUMULADO[año, mes] == 0)
                 
-                # Remanente y llenado
                 model.addConstr(Rem[año,mes] == Qin - UPREF)
                 model.addConstr(ESPACIO_VRFI[año,mes] == C_VRFI - V_R_prev)
                 model.addConstr(ESPACIO_A[año,mes] == C_TIPO_A - V_A_prev)
@@ -279,21 +277,17 @@ class MonteCarloEmbalse:
                 model.addConstr(IN_VRFI[año,mes] == LLENADO_VRFI[año,mes])
                 model.addConstr(REBALSE_TOTAL[año,mes] == Rem[año,mes] - IN_VRFI[año,mes] - IN_A[año,mes] - IN_B[año,mes])
                 
-                # Disponibilidad VRFI despues del ssr
                 temp_free = model.addVar(lb=-GRB.INFINITY, name=f"temp_free_{año}_{mes}")
                 model.addConstr(temp_free == V_R_prev + IN_VRFI[año, mes] - Q_CONSUMO_HUMANO[año, mes] - RESERVA_MIN_VRFI)
                 model.addGenConstrMax(VRFI_DISPONIBLE_LIBRE[año, mes], [temp_free, CERO_CONSTANTE])
                 
-                # Balances
                 model.addConstr(V_VRFI[año,mes] == V_R_prev + IN_VRFI[año,mes] - Q_CONSUMO_HUMANO[año,mes] - Q_A_apoyo[año,mes] - Q_B_apoyo[año,mes])
                 model.addConstr(V_A[año,mes] == V_A_prev + IN_A[año,mes] - Q_A[año,mes])
                 model.addConstr(V_B[año,mes] == V_B_prev + IN_B[año,mes] - Q_B[año,mes])
                 
-                # Disponibilidades
                 model.addConstr(Q_A[año,mes] <= V_A_prev + IN_A[año,mes])
                 model.addConstr(Q_B[año,mes] <= V_B_prev + IN_B[año,mes])
                 
-                # Propio primero
                 model.addConstr(DISPONIBLE_A[año,mes] == V_A_prev + IN_A[año,mes])
                 model.addConstr(DEMANDA_A_50[año,mes] == 0.5*demA)
                 model.addGenConstrMin(REQ_A_PROPIO[año,mes], [DISPONIBLE_A[año,mes], DEMANDA_A_50[año,mes]])
@@ -304,55 +298,51 @@ class MonteCarloEmbalse:
                 model.addGenConstrMin(REQ_B_PROPIO[año,mes], [DISPONIBLE_B[año,mes], DEMANDA_B_50[año,mes]])
                 model.addConstr(Q_B[año,mes] >= REQ_B_PROPIO[año,mes])
                 
-                # Apoyo VRFI
                 model.addConstr(tA[año,mes] == 0.5*demA - Q_A[año,mes])
                 model.addConstr(tB[año,mes] == 0.5*demB - Q_B[año,mes])
                 model.addGenConstrMax(FALTANTE_A[año,mes], [tA[año,mes], CERO_CONSTANTE])
                 model.addGenConstrMax(FALTANTE_B[año,mes], [tB[año,mes], CERO_CONSTANTE])
 
-                # Reparto 71/29 capacidad
                 model.addConstr(FALTANTE_TOTAL[año,mes] == FALTANTE_A[año,mes] + FALTANTE_B[año,mes])
                 model.addGenConstrMin(APOYO_TOTAL[año,mes], [VRFI_DISPONIBLE_LIBRE[año, mes], FALTANTE_TOTAL[año,mes]])
 
-                # Reparto proporcional base 71/29
                 model.addConstr(PROPORCION_A[año, mes] == 0.71 * APOYO_TOTAL[año, mes])
                 model.addConstr(PROPORCION_B[año, mes] == 0.29 * APOYO_TOTAL[año, mes])
 
-                # Asignacion base sin exceder la necesidad
                 model.addGenConstrMin(ASIGNACION_A_BASE[año, mes], [PROPORCION_A[año, mes], FALTANTE_A[año, mes]])
                 model.addGenConstrMin(ASIGNACION_B_BASE[año, mes], [PROPORCION_B[año, mes], FALTANTE_B[año, mes]])
 
-                # Calcular excedentes y brechas
                 model.addConstr(EXCEDENTE_A[año, mes] == PROPORCION_A[año, mes] - ASIGNACION_A_BASE[año, mes])
                 model.addConstr(EXCEDENTE_B[año, mes] == PROPORCION_B[año, mes] - ASIGNACION_B_BASE[año, mes])
                 model.addConstr(BRECHA_A[año, mes] == FALTANTE_A[año, mes] - ASIGNACION_A_BASE[año, mes])
                 model.addConstr(BRECHA_B[año, mes] == FALTANTE_B[año, mes] - ASIGNACION_B_BASE[año, mes])
 
-                # Reasignar excedentes
                 model.addGenConstrMin(EXTRA_HACIA_B[año, mes], [EXCEDENTE_A[año, mes], BRECHA_B[año, mes]])
                 model.addGenConstrMin(EXTRA_HACIA_A[año, mes], [EXCEDENTE_B[año, mes], BRECHA_A[año, mes]])
 
-                # Asignacion final con reasignación
                 model.addConstr(Q_A_apoyo[año, mes] == ASIGNACION_A_BASE[año, mes] + EXTRA_HACIA_A[año, mes])
                 model.addConstr(Q_B_apoyo[año, mes] == ASIGNACION_B_BASE[año, mes] + EXTRA_HACIA_B[año, mes])
 
-                # Deficits
                 model.addConstr(d_A[año,mes] == demA - (Q_A[año,mes] + Q_A_apoyo[año,mes]))
                 model.addConstr(d_B[año,mes] == demB - (Q_B[año,mes] + Q_B_apoyo[año,mes]))
                 
                 model.addConstr(Q_A[año,mes] + Q_A_apoyo[año,mes] <= demA + 1e-9)
                 model.addConstr(Q_B[año,mes] + Q_B_apoyo[año,mes] <= demB + 1e-9)
                 
-                # Turbinado
                 model.addConstr(Q_turb[año,mes] == Q_A[año,mes] + Q_A_apoyo[año,mes] + Q_B[año,mes] + Q_B_apoyo[año,mes] + REBALSE_TOTAL[año,mes])
             
-        # Objetivo
-        total_def = gp.quicksum(d_A[año,mes] + d_B[año,mes] for año in anos_escenario for mes in meses)
-        pen_vrfi = gp.quicksum(Q_A_apoyo[año,mes] + Q_B_apoyo[año,mes] for año in anos_escenario for mes in meses)
-        inc_prop = gp.quicksum(Q_A[año,mes] + Q_B[año,mes] for año in anos_escenario for mes in meses)
+        extra_const = 0.0
+        for año in anos_escenario:
+            y = int(año.split('/')[0])
+            for mes in meses:
+                key = m_civil[mes]
+                DemA_base = (DA_a_m[key] * num_A) / 1_000_000.0
+                DemB_base = (DB_a_b[key] * num_B) / 1_000_000.0
+                d_FE = (1.0 - FEA) * DemA_base + (1.0 - FEB) * DemB_base
+                extra_const += d_FE
         
-        model.setObjective(total_def + 1e-3*pen_vrfi - 1e-3*inc_prop, GRB.MINIMIZE)
-        
+        total_def_vars = gp.quicksum(d_A[año,mes] + d_B[año,mes] for año in anos_escenario for mes in meses)
+        model.setObjective(total_def_vars + extra_const, GRB.MINIMIZE)
 
         model.optimize()
         
@@ -362,7 +352,6 @@ class MonteCarloEmbalse:
         tiempo_ejecucion = model.Runtime
         gap = model.MIPGap if hasattr(model, 'MIPGap') else 0.0
         
-        # Metricas
         deficit_total = model.objVal
         deficit_A = sum(d_A[año, mes].X for año in anos_escenario for mes in meses)
         deficit_B = sum(d_B[año, mes].X for año in anos_escenario for mes in meses)
@@ -436,16 +425,17 @@ class MonteCarloEmbalse:
             'satisfaccion_total_%': satisfaccion_total
         }
     
-    def ejecutar_monte_carlo(self):
+    def ejecutar_monte_carlo(self, FEA=1.0, FEB=1.0):
         print(f"\n{'#'*60}")
         print(f"INICIANDO SIMULACIÓN DE MONTE CARLO")
         print(f"Numero de simulaciones: {self.num_simulaciones}")
         print(f"Duración por simulacion: {self.duracion_anos} años")
+        print(f"FEA: {FEA}, FEB: {FEB}")
         print(f"{'#'*60}\n")
         
         for i in range(self.num_simulaciones):
             escenario = self.generar_escenario()
-            resultado = self.ejecutar_simulacion(i, escenario)
+            resultado = self.ejecutar_simulacion(i, escenario, FEA=FEA, FEB=FEB)
             
             if resultado is not None:
                 self.resultados_simulaciones.append(resultado)
@@ -563,20 +553,24 @@ class MonteCarloEmbalse:
 
 
 def main():
-    # Estos se pueden cambiar en base a lo que se necesite
-    NUM_SIMULACIONES = 10
-    DURACION_ANOS = 30
+    NUM_SIMULACIONES = 200
+    DURACION_ANOS = 15
+    FEA = 1.0
+    FEB = 1.0
     
     mc = MonteCarloEmbalse(
         num_simulaciones=NUM_SIMULACIONES,
-        duracion_anos=DURACION_ANOS
+        duracion_anos=DURACION_ANOS,
+        acumular_ssr=True,
+        VRFI_init=0.0,
+        VA_init=0.0,
+        VB_init=0.0
     )
     
-    mc.ejecutar_monte_carlo()
+    mc.ejecutar_monte_carlo(FEA=FEA, FEB=FEB)
     mc.exportar_resultados()
 
 
 if __name__ == "__main__":
-    # Usamos semilla x mientras para reproducibilidad
     np.random.seed(42)
     main()
