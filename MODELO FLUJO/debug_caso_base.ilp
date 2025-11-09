@@ -1,0 +1,11 @@
+\ Model Embalse_Caso_Base_copy
+\ LP format - for model browsing. Use MPS format to capture full model detail.
+\ Signature: 0xf1dc94bea051e7c4
+Minimize
+ 
+Subject To
+ init_TOTAL: V_TOTAL[1989/1990,1] = 0
+ MIN_VRFI_1989/1990_1: V_TOTAL[1989/1990,1] >= 2.275
+Bounds
+ V_TOTAL[1989/1990,1] free
+End

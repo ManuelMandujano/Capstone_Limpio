@@ -1,0 +1,26 @@
+======================================================================
+IIS — CONJUNTO IRREDUCIBLE DE INFACTIBILIDAD
+======================================================================
+Restricciones lineales en el IIS:
+  - init_TOTAL_EQ_FLOOR
+  - rem_1989/1990_2
+  - perdidas_1989/1990_2
+  - ssr_exig_1989/1990_2
+  - ssr_cap_1989/1990_2
+  - bal_total_1989/1990_2
+  - MIN_VRFI_1989/1990_2
+
+Restricciones cuadráticas en el IIS:
+
+Restricciones generales (GenConstr) en el IIS:
+  - ssr_pago_1989/1990_2
+
+Variables con límites en el IIS (LB/UB):
+  - E_TOT[1989/1990,2] (LB en IIS)  LB=0.0
+  - Q_DEM[1989/1990,2] (LB en IIS)  LB=0.0
+  - SSR_ACUM[1989/1990,1] (LB en IIS)  LB=0.0
+
+PISTAS RÁPIDAS:
+  * Revisa colisiones tipo: igualdad fija vs. cota inferior/superior,
+    y pisos mínimos sobre V_TOTAL combinados con balances del primer mes.
+  * Verifica 'init_TOTAL_EQ_FLOOR' con 'MIN_VRFI_*' y 'bal_total_*' de mayo.

@@ -1,0 +1,181 @@
+# graficos_kpis_insight.py
+import os
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+from matplotlib.backends.backend_pdf import PdfPages
+
+CSV_FILES = {5: "resultados_5y.csv", 10: "resultados_10y.csv", 15: "resultados_15y.csv"}
+
+ESCENARIOS_VOL = {
+    (0.0,   0.0,   0.0):    "0%",
+    (43.8,  65.0,  26.3):   "25%",
+    (87.5,  130.0, 52.5):   "50%",
+    (131.3, 195.0, 78.8):   "75%",
+    (175.0, 260.0, 105.0):  "100%",
+}
+TOL = 1e-3
+
+KPI_LABEL = {
+    "Satisf_prom_pct":       ("Satisfacción promedio (%)", "Porcentaje (%)"),
+    "Def_total_Hm3":         ("Déficit total (modelo + FE) [Hm³]", "Hm³"),
+    "Def_modelo_Hm3":        ("Déficit del modelo [Hm³]", "Hm³"),
+    "Def_FE_Hm3":            ("Déficit por FE [Hm³]", "Hm³"),
+    "Rebalse_total_Hm3":     ("Rebalse total del periodo [Hm³]", "Hm³"),
+    "Qturb_total_Hm3":       ("Volumen turbinado total [Hm³]", "Hm³"),
+    "Qdis_prom_Hm3_mes":     ("Caudal disponible promedio [Hm³/mes]", "Hm³/mes"),
+    "TOTAL_fin_Hm3":         ("Agua total almacenada al final [Hm³]", "Hm³"),
+}
+
+def scenario_label(row):
+    v = (round(row["VRFI0"], 3), round(row["A0"], 3), round(row["B0"], 3))
+    for (vr, a, b), lab in ESCENARIOS_VOL.items():
+        if abs(v[0]-vr) < TOL and abs(v[1]-a) < TOL and abs(v[2]-b) < TOL:
+            return lab
+    return f"({row['VRFI0']:.1f},{row['A0']:.1f},{row['B0']:.1f})"
+
+def ensure_dir(path): os.makedirs(path, exist_ok=True)
+
+def load_period_df(period):
+    f = CSV_FILES.get(period)
+    if not f or not os.path.exists(f):
+        return None
+    df = pd.read_csv(f)
+    if df.empty:
+        return None
+    df["init_label"] = df.apply(scenario_label, axis=1)
+    # Nos quedamos con casos FEA==FEB (tu diseño)
+    df = df[np.isclose(df["FEA"], df["FEB"])]
+    return df
+
+# ---------- HEATMAP ----------
+def plot_heatmap_mean(df, period, kpi, outdir):
+    title, _unit = KPI_LABEL[kpi]
+    pivot = df.pivot_table(index="init_label", columns="FEA", values=kpi, aggfunc="mean")
+    pivot = pivot.sort_index().sort_index(axis=1)
+    fig, ax = plt.subplots(figsize=(8, 4.8))
+    im = ax.imshow(pivot.values, aspect="auto")
+    ax.set_xticks(range(len(pivot.columns)))
+    ax.set_xticklabels([f"{x:.2f}" for x in pivot.columns], rotation=0)
+    ax.set_yticks(range(len(pivot.index)))
+    ax.set_yticklabels(pivot.index)
+    ax.set_xlabel("FEA = FEB")
+    ax.set_title(f"{title} — Heatmap (promedio) · Periodo {period} años")
+    # etiquetas en celdas
+    for i in range(pivot.shape[0]):
+        for j in range(pivot.shape[1]):
+            ax.text(j, i, f"{pivot.values[i, j]:.0f}" if "Hm3" in kpi else f"{pivot.values[i, j]:.1f}",
+                    ha="center", va="center", fontsize=8)
+    fig.tight_layout()
+    path = os.path.join(outdir, f"{period}y_heat_{kpi}.png")
+    plt.savefig(path, dpi=160); plt.close(fig)
+    return path
+
+# ---------- SENSIBILIDAD RELATIVA ----------
+def plot_relative_change(df, period, kpi, outdir):
+    title, unit = KPI_LABEL[kpi]
+    # baseline = valor en FE=1.0 por escenario inicial (promedio sobre iteraciones)
+    base = (df[np.isclose(df["FEA"], 1.0)]
+            .groupby("init_label")[kpi].mean().rename("base"))
+    d = df.merge(base, on="init_label", how="left")
+    # cambio relativo (%). Para métricas “más es mejor” puede ser útil, pero igual sirve para ver gradiente.
+    d["rel_%"] = (d[kpi] - d["base"]) / d["base"] * 100.0
+    fig, ax = plt.subplots(figsize=(9, 5))
+    for init_lab, g in d.groupby("init_label"):
+        g = g.sort_values("FEA")
+        ax.plot(g["FEA"].values, g["rel_%"].values, marker="o", label=f"Init {init_lab}")
+    ax.axhline(0, linestyle="--", linewidth=1)
+    ax.set_xlabel("FEA = FEB")
+    ax.set_ylabel("Cambio relativo vs FE=1.0 (%)")
+    ax.set_title(f"Sensibilidad relativa de {title} — Periodo {period} años")
+    ax.grid(True, alpha=0.3)
+    ax.legend(ncol=3, fontsize=9, title="Escenario inicial")
+    plt.tight_layout()
+    path = os.path.join(outdir, f"{period}y_rel_{kpi}.png")
+    plt.savefig(path, dpi=160); plt.close(fig)
+    return path
+
+# ---------- PARETO: DÉFICIT vs SATIS ----------
+def plot_pareto(df, period, outdir):
+    fig, ax = plt.subplots(figsize=(8.6, 5.2))
+    for init_lab, g in df.groupby("init_label"):
+        for fe, h in g.groupby("FEA"):
+            ax.scatter(h["Def_total_Hm3"].mean(), h["Satisf_prom_pct"].mean(), label=None)
+            # rótulo FE en cada punto
+            ax.annotate(f"{fe:.2f}", (h["Def_total_Hm3"].mean(), h["Satisf_prom_pct"].mean()),
+                        textcoords="offset points", xytext=(3,3), fontsize=8)
+        # línea que conecta FEs (ordenada):
+        gs = g.groupby("FEA").mean(numeric_only=True).sort_index()
+        ax.plot(gs["Def_total_Hm3"], gs["Satisf_prom_pct"], label=f"Init {init_lab}")
+    ax.set_xlabel("Déficit total [Hm³]")
+    ax.set_ylabel("Satisfacción promedio (%)")
+    ax.set_title(f"Trade-off Déficit vs Satisfacción — Periodo {period} años")
+    ax.grid(True, alpha=0.3)
+    ax.legend(ncol=2, fontsize=9)
+    plt.tight_layout()
+    path = os.path.join(outdir, f"{period}y_pareto_def_vs_sat.png")
+    plt.savefig(path, dpi=160); plt.close(fig)
+    return path
+
+# ---------- BOXPLOTS: variabilidad entre iteraciones ----------
+def plot_boxplots_deficit(df, period, outdir):
+    paths = []
+    for init_lab, g in df.groupby("init_label"):
+        order = sorted(g["FEA"].unique())
+        data = [g[g["FEA"].eq(fe)]["Def_total_Hm3"].values for fe in order]
+        fig, ax = plt.subplots(figsize=(8.6, 5))
+        ax.boxplot(data, labels=[f"{fe:.2f}" for fe in order], showmeans=True)
+        ax.set_xlabel("FEA = FEB")
+        ax.set_ylabel("Déficit total [Hm³]")
+        ax.set_title(f"Variabilidad (boxplot) — Init {init_lab} · Periodo {period} años")
+        ax.grid(True, axis="y", alpha=0.3)
+        plt.tight_layout()
+        path = os.path.join(outdir, f"{period}y_box_def_total_init_{init_lab.replace('%','pct')}.png")
+        plt.savefig(path, dpi=160); plt.close(fig)
+        paths.append(path)
+    return paths
+
+def compile_pdf(images, out_pdf):
+    with PdfPages(out_pdf) as pdf:
+        for p in images:
+            fig = plt.figure(figsize=(11.69, 8.27))
+            img = plt.imread(p)
+            plt.imshow(img); plt.axis("off")
+            pdf.savefig(fig); plt.close(fig)
+
+def main():
+    root = "plots_insight"
+    ensure_dir(root)
+
+    for period in (5, 10, 15):
+        df = load_period_df(period)
+        if df is None: 
+            print(f"[WARN] no encontré CSV para {period}y"); 
+            continue
+
+        outdir = os.path.join(root, f"{period}y"); ensure_dir(outdir)
+        generated = []
+
+        # 1) Heatmaps para KPIs clave
+        for kpi in ("Def_total_Hm3", "Def_modelo_Hm3", "Def_FE_Hm3",
+                    "Satisf_prom_pct", "Rebalse_total_Hm3", "Qdis_prom_Hm3_mes",
+                    "Qturb_total_Hm3", "TOTAL_fin_Hm3"):
+            generated.append(plot_heatmap_mean(df, period, kpi, outdir))
+
+        # 2) Sensibilidad relativa vs FE (baseline FE=1.0)
+        for kpi in ("Def_total_Hm3", "Satisf_prom_pct", "Rebalse_total_Hm3", "Qdis_prom_Hm3_mes"):
+            generated.append(plot_relative_change(df, period, kpi, outdir))
+
+        # 3) Pareto déficit vs satisfacción
+        generated.append(plot_pareto(df, period, outdir))
+
+        # 4) Boxplots de variabilidad por escenario
+        generated += plot_boxplots_deficit(df, period, outdir)
+
+        # PDF resumen
+        pdf_path = os.path.join(outdir, f"{period}y_insight_report.pdf")
+        compile_pdf(generated, pdf_path)
+        print(f"[OK] {period}y → {pdf_path}")
+
+if __name__ == "__main__":
+    main()

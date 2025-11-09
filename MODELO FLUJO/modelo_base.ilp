@@ -1,0 +1,15 @@
+\ Model Embalse_Nueva_Punilla_BASE_copy
+\ LP format - for model browsing. Use MPS format to capture full model detail.
+\ Signature: 0x6a6d186db889ab51
+Minimize
+ 
+Subject To
+ Q_DISPONIBLE_1989/1990_1: Q_dis[1989/1990,1] = 0
+ BAL_VOLTOTAL_1989/1990_1: voltotal[1989/1990,1]
+   + Q_CONSUMO_HUMANO[1989/1990,1] - Q_dis[1989/1990,1] - V_prev_init = 0
+ PISO_VOLTOTAL_1989/1990_1: voltotal[1989/1990,1] >= 2.275
+Bounds
+ voltotal[1989/1990,1] free
+ Q_dis[1989/1990,1] free
+ -infinity <= V_prev_init <= 0
+End

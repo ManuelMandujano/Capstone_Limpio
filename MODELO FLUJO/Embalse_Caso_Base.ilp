@@ -1,0 +1,29 @@
+\ Model Embalse_Caso_Base_copy
+\ LP format - for model browsing. Use MPS format to capture full model detail.
+\ Signature: 0x9be1e01db45cce
+Minimize
+ 
+Subject To
+ init_TOTAL_EQ_FLOOR: V_TOTAL[1989/1990,1] = 2.275
+ rem_1989/1990_2: Rem[1989/1990,2] = 0
+ perdidas_1989/1990_2: IN_TOTAL[1989/1990,2] + E_TOT[1989/1990,2]
+   - Rem[1989/1990,2] = 0
+ ssr_exig_1989/1990_2: SSR_EXIG[1989/1990,2] - SSR_ACUM[1989/1990,1]
+   = 0.325
+ ssr_cap_1989/1990_2: - V_TOTAL[1989/1990,1] - IN_TOTAL[1989/1990,2]
+   + SSR_CAPVAR[1989/1990,2] = 0
+ bal_total_1989/1990_2: - V_TOTAL[1989/1990,1] + V_TOTAL[1989/1990,2]
+   - IN_TOTAL[1989/1990,2] + Q_ch[1989/1990,2] + Q_DEM[1989/1990,2] = 0
+ MIN_VRFI_1989/1990_2: V_TOTAL[1989/1990,2] >= 2.275
+Bounds
+ V_TOTAL[1989/1990,1] free
+ V_TOTAL[1989/1990,2] free
+ IN_TOTAL[1989/1990,2] free
+ Q_ch[1989/1990,2] free
+ Rem[1989/1990,2] free
+ SSR_EXIG[1989/1990,2] free
+ SSR_CAPVAR[1989/1990,2] free
+General Constraints
+ ssr_pago_1989/1990_2: Q_ch[1989/1990,2] = MIN ( SSR_EXIG[1989/1990,2] ,
+   SSR_CAPVAR[1989/1990,2] )
+End

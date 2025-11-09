@@ -15,7 +15,7 @@ class EmbalseCasoBase:
                      '2009/2010', '2010/2011', '2011/2012', '2012/2013', '2013/2014',
                      '2014/2015', '2015/2016', '2016/2017', '2017/2018', '2018/2019']
         
-        # Meses del MODELO según año hidrologico del excel: 1..12 = mayo..abril
+        # Meses del MODELO según año hidrológico del excel: 1..12 = mayo..abril
         self.meses = list(range(1, 13))
         self.C_TOTAL = 540  # Hm³
 
@@ -35,7 +35,6 @@ class EmbalseCasoBase:
             12: 30*24*3600  # abr
         }
 
-        
         self.inflow  = {}
         self.Q_nuble = {}
         self.Q_hoya1 = {}
@@ -46,11 +45,14 @@ class EmbalseCasoBase:
         self.num_A = 21221
         self.num_B = 7100
 
+        # Piso conceptual (protege SSR, NO limita V_TOTAL)
+        self.RESERVA_MIN_VRFI = 4.0  # Hm³
+
         # Demandas mensuales por acción (m³/mes por acción), indexadas por mes calendario normal (1=ene,...,12=dic)
         self.DA_a_m = {1:9503,2:6516,3:3452,4:776,5:0,6:0,7:0,8:0,9:0,10:2444,11:6516,12:9580}
         self.DB_a_b = {1:3361,2:2305,3:1221,4:274,5:0,6:0,7:0,8:0,9:0,10: 864,11:2305,12:3388}
 
-        # Mapeo de mes hidrologico del excel a mes normal
+        # Mapeo de mes hidrológico del excel a mes normal
         # 1=may→5, 2=jun→6, ..., 8=dic→12, 9=ene→1, ..., 12=abr→4
         self.m_mayo_abril_normal = {1:5,2:6,3:7,4:8,5:9,6:10,7:11,8:12,9:1,10:2,11:3,12:4}
 
@@ -125,8 +127,14 @@ class EmbalseCasoBase:
                 qpd_nom = max(derechos_MAY_ABR[mes-1], qeco_MAY_ABR[mes-1], max(0.0, 95.7 - H))
                 self.QPD_eff[año, mes] = min(qpd_nom, self.Q_nuble.get((y,mes),0.0))
 
+        # Stock inicial como en el caso base original
         primer = self.anos[0]
         m.addConstr(self.V_TOTAL[primer,1] == 0, name="init_TOTAL")
+
+        # Variable fija a cero para usar en MAX(...)
+        self.ZERO = m.addVar(lb=0.0, ub=0.0, name="ZERO")
+        # CAP_RAW = (stock disponible sobre el piso) — solo para SSR
+        self.CAP_RAW = m.addVars(self.anos, self.meses, name="CAP_RAW", lb=-GRB.INFINITY)
 
         ssr_mes = self.V_C_H / 12.0
 
@@ -138,10 +146,10 @@ class EmbalseCasoBase:
                 Qin = Qin_s * seg / 1_000_000.0
                 UPREF = self.QPD_eff[año, mes] * seg / 1_000_000.0
 
-                # === Demanda mensual (A y B) en Hm³/mes — SIN multiplicar por seg ===
+                # Demanda mensual (A y B) en Hm³/mes — SIN multiplicar por seg
                 cal_m = self.m_mayo_abril_normal[mes]  # mes calendario 1..12
-                demA = self.DA_a_m.get(cal_m, 0.0) * self.num_A / 1_000_000.0  # Hm³/mes
-                demB = self.DB_a_b.get(cal_m, 0.0) * self.num_B / 1_000_000.0  # Hm³/mes
+                demA = self.DA_a_m.get(cal_m, 0.0) * self.num_A / 1_000_000.0
+                demB = self.DB_a_b.get(cal_m, 0.0) * self.num_B / 1_000_000.0
                 demTOTAL = demA + demB
 
                 if i == 0:
@@ -152,6 +160,7 @@ class EmbalseCasoBase:
                     V_prev = self.V_TOTAL[año, mes-1]
                     backlog_prev = self.SSR_ACUM[año, mes-1]
 
+                # Hidráulica
                 m.addConstr(self.Rem[año,mes] == Qin - UPREF, name=f"rem_{año}_{mes}")
                 m.addConstr(self.TopeM[año,mes] == self.C_TOTAL - V_prev, name=f"TopeM_{año}_{mes}")
                 m.addGenConstrMin(self.LlenadoT[año,mes], [self.Rem[año,mes], self.TopeM[año,mes]], name=f"llenadoT_min_{año}_{mes}")
@@ -159,18 +168,35 @@ class EmbalseCasoBase:
                 m.addConstr(self.E_TOT[año,mes] == self.Rem[año,mes] - self.IN_TOTAL[año,mes], name=f"perdidas_{año}_{mes}")
                 m.addConstr(self.Q_dis[año,mes] == Qin - UPREF, name=f"qdis_{año}_{mes}")
 
+                # ====== SSR PROTEGIDO (NO TOCA EL PISO), PERO CONSUMO HUMANO SÍ PUEDE USARLO ======
                 m.addConstr(self.SSR_EXIG[año, mes] == ssr_mes + backlog_prev, name=f"ssr_exig_{año}_{mes}")
-                m.addConstr(self.SSR_CAPVAR[año, mes] == V_prev + self.IN_TOTAL[año,mes], name=f"ssr_cap_{año}_{mes}")
-                m.addGenConstrMin(self.Q_ch[año, mes], [self.SSR_EXIG[año, mes], self.SSR_CAPVAR[año, mes]], name=f"ssr_pago_{año}_{mes}")
-                m.addConstr(self.SSR_ACUM[año, mes] == self.SSR_EXIG[año, mes] - self.Q_ch[año, mes], name=f"ssr_acum_{año}_{mes}")
 
+                # CAP_RAW = V_prev + IN_TOTAL - PISO
+                m.addConstr(self.CAP_RAW[año, mes] == V_prev + self.IN_TOTAL[año,mes] - self.RESERVA_MIN_VRFI,
+                            name=f"cap_raw_{año}_{mes}")
+
+                # SSR_CAPVAR = max(0, CAP_RAW)  → SSR solo se paga con lo que está sobre el piso
+                m.addGenConstrMax(self.SSR_CAPVAR[año, mes], [self.CAP_RAW[año, mes], self.ZERO],
+                                  name=f"ssr_cap_{año}_{mes}")
+
+                # Pago SSR ≤ exigencia y ≤ disponible sobre el piso
+                m.addGenConstrMin(self.Q_ch[año, mes], [self.SSR_EXIG[año, mes], self.SSR_CAPVAR[año, mes]],
+                                  name=f"ssr_pago_{año}_{mes}")
+
+                m.addConstr(self.SSR_ACUM[año, mes] == self.SSR_EXIG[año, mes] - self.Q_ch[año, mes],
+                            name=f"ssr_acum_{año}_{mes}")
+                # ====== FIN SSR ======
+
+                # Demanda puede usar TODO lo disponible (incluida la reserva); no restamos el piso aquí
                 m.addConstr(self.Q_DEM[año,mes] <= V_prev + self.IN_TOTAL[año,mes] - self.Q_ch[año,mes] + 1e-9, name=f"disp_dem_post_ssr_{año}_{mes}")
                 m.addConstr(self.Q_DEM[año,mes] <= demTOTAL + 1e-9, name=f"nosobre_dem_{año}_{mes}")
                 m.addConstr(self.d_TOTAL[año,mes] == demTOTAL - self.Q_DEM[año,mes], name=f"def_total_{año}_{mes}")
 
+                # Balance y capacidad (SIN piso mínimo en V_TOTAL)
                 m.addConstr(self.V_TOTAL[año,mes] == V_prev + self.IN_TOTAL[año,mes] - self.Q_DEM[año,mes] - self.Q_ch[año,mes], name=f"bal_total_{año}_{mes}")
                 m.addConstr(self.V_TOTAL[año,mes] <= self.C_TOTAL, name=f"cap_total_{año}_{mes}")
 
+                # Turbinado
                 m.addConstr(self.Q_turb[año,mes] == self.Q_DEM[año,mes] + self.E_TOT[año,mes], name=f"turb_{año}_{mes}")
 
         if self.arreglo_ssr_mensual:
@@ -179,7 +205,7 @@ class EmbalseCasoBase:
                     pass
         else:
             for año in self.anos:
-                m.addConstr(gp.quicksum(self.Q_ch[año, mes] for mes in self.meses) == self.V_C_H, name=f"ssr_anual_{año}")
+                self.model.addConstr(gp.quicksum(self.Q_ch[año, mes] for mes in self.meses) == self.V_C_H, name=f"ssr_anual_{año}")
 
     def set_objective(self):
         total_def = gp.quicksum(self.d_TOTAL[año,mes] for año in self.anos for mes in self.meses)
@@ -258,9 +284,7 @@ class EmbalseCasoBase:
         mes_tag = {1:'may',2:'jun',3:'jul',4:'ago',5:'sep',6:'oct',7:'nov',8:'dic',9:'ene',10:'feb',11:'mar',12:'abr'}
         lines = []
 
-    
         # 1) KPI AGREGADOS (30 AÑOS)
-        
         NY = len(self.anos)
         sum_q_turb_total = 0.0
         sum_rebalse_total = 0.0
@@ -309,11 +333,10 @@ class EmbalseCasoBase:
         qdis_prom_mensual_total = sum_qdis_total / (NY * 12.0)
         satisf_ponderada_global = (servicio_total / demanda_total * 100.0) if demanda_total > 0 else 100.0
 
-        # Último stock al final del último periodo osea abril ultimo año
+        # Último stock al final del último periodo
         ultimo_anio = self.anos[-1]
         V_fin_total = self.V_TOTAL[ultimo_anio, 12].X  # 12 = abr (fin del ciclo mayo-abril)
 
-        #
         lines.append("="*70)
         lines.append("RESUMEN 30 AÑOS — AGREGADOS")
         lines.append("="*70)
@@ -335,15 +358,12 @@ class EmbalseCasoBase:
             lines.append(f"{mes_tag[mes]:<4} {reb_prom:10.2f} {qd_prom:22.2f} {sat_m:22.2f}%")
 
         lines.append("")
-        # Nota sobre A/B
         lines.append("Agua almacenada al final de los 30 años (fin del último periodo):")
         lines.append(f"  Embalse (V_TOTAL): {V_fin_total:.1f} Hm³")
         lines.append("  (Este modelo no separa stocks A/B; se reporta el volumen total del embalse)")
         lines.append("")
 
-        #
         # DETALLE POR AÑO 
-     
         lines.append("="*50)
         lines.append("DETALLE POR AÑO")
         lines.append("="*50)
@@ -416,7 +436,6 @@ class EmbalseCasoBase:
             f.write("\n".join(lines))
         print(f"Reporte TXT escrito en {filename}")
         return filename
-
 
     def solve(self):
         try:

@@ -1,0 +1,27 @@
+==============================================================================
+RESUMEN DEL INTERVALO — 1989/1990 → 1993/1994
+==============================================================================
+FEA=1.000 | FEB=1.000
+Volumen turbinado TOTAL (intervalo): 4,875.1 Hm³
+Rebalse TOTAL (intervalo): 2,146.6 Hm³
+Déficit del MODELO (∑d_A+d_B): 1,874.0 Hm³
+Déficit por FE agregado: 0.0 Hm³
+Déficit TOTAL reportado: 1,874.0 Hm³
+Caudal disponible PROMEDIO mensual: 73.10 Hm³/mes
+Satisfacción ponderada PROMEDIO:  59.28%
+
+Promedios mensuales sobre el intervalo:
+Mes   Rebalse prom [Hm³/mes]   Q_dis prom [Hm³/mes]   %Satisfaccion (ponderada)
+----------------------------------------------------------------------
+may         3.77                    200.07                100.00%
+jun        80.37                    203.00                100.00%
+jul        72.41                     72.60                100.00%
+ago        49.81                     56.18                100.00%
+sep        64.64                    103.51                100.00%
+oct        90.34                     93.71                100.00%
+nov        62.15                    105.57                 91.06%
+dic         5.84                     42.52                 70.83%
+ene         0.00                      0.00                 45.16%
+feb         0.00                      0.00                 44.23%
+mar         0.00                      0.00                 17.14%
+abr         0.00                      0.00                  8.45%

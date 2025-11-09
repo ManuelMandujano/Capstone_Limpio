@@ -1,0 +1,27 @@
+==============================================================================
+RESUMEN DEL INTERVALO — 2014/2015 → 2018/2019
+==============================================================================
+FEA=0.800 | FEB=0.800
+Volumen turbinado TOTAL (intervalo): 2,904.0 Hm³
+Rebalse TOTAL (intervalo): 790.8 Hm³
+Déficit del MODELO (∑d_A+d_B): 1,568.8 Hm³
+Déficit por FE agregado: 920.5 Hm³
+Déficit TOTAL reportado: 2,489.3 Hm³
+Caudal disponible PROMEDIO mensual: 40.29 Hm³/mes
+Satisfacción ponderada PROMEDIO:  57.39%
+
+Promedios mensuales sobre el intervalo:
+Mes   Rebalse prom [Hm³/mes]   Q_dis prom [Hm³/mes]   %Satisfaccion (ponderada)
+----------------------------------------------------------------------
+may         0.00                      0.00                100.00%
+jun         4.67                     11.52                100.00%
+jul        13.77                     52.92                100.00%
+ago        40.92                    108.96                100.00%
+sep        40.21                     99.08                100.00%
+oct        45.39                    101.18                 91.06%
+nov        13.20                    105.01                 83.86%
+dic         0.00                      4.82                 62.43%
+ene         0.00                      0.00                 44.23%
+feb         0.00                      0.00                 44.23%
+mar         0.00                      0.00                 36.54%
+abr         0.00                      0.00                 31.29%

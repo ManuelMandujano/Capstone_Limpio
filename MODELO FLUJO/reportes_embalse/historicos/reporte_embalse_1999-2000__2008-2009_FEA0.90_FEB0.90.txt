@@ -2,13 +2,13 @@
 RESUMEN DEL INTERVALO — 1999/2000 → 2008/2009
 ==============================================================================
 FEA=0.900 | FEB=0.900
-Volumen turbinado TOTAL (intervalo): 8,645.0 Hm³
-Rebalse TOTAL (intervalo): 3,573.0 Hm³
-Déficit del MODELO (∑d_A+d_B): 3,212.4 Hm³
+Volumen turbinado TOTAL (intervalo): 9,185.0 Hm³
+Rebalse TOTAL (intervalo): 4,017.6 Hm³
+Déficit del MODELO (∑d_A+d_B): 3,117.0 Hm³
 Déficit por FE agregado: 920.5 Hm³
-Déficit TOTAL reportado: 4,132.9 Hm³
+Déficit TOTAL reportado: 4,037.5 Hm³
 Caudal disponible PROMEDIO mensual: 72.57 Hm³/mes
-Satisfacción ponderada PROMEDIO:  61.22%
+Satisfacción ponderada PROMEDIO:  62.37%
 
 Promedios mensuales sobre el intervalo:
 Mes   Rebalse prom [Hm³/mes]   Q_dis prom [Hm³/mes]   %Satisfaccion (ponderada)
@@ -16,12 +16,12 @@ Mes   Rebalse prom [Hm³/mes]   Q_dis prom [Hm³/mes]   %Satisfaccion (ponderada
 may         0.00                     73.79                100.00%
 jun         2.47                    142.05                100.00%
 jul        78.44                    144.50                100.00%
-ago        86.87                    144.26                100.00%
-sep        60.18                    101.30                100.00%
-oct        65.38                    107.15                 95.53%
-nov        51.11                    108.19                 92.07%
-dic        12.84                     48.28                 70.60%
+ago        92.06                    144.26                100.00%
+sep        78.38                    101.30                100.00%
+oct        79.69                    107.15                 95.53%
+nov        57.87                    108.19                 92.07%
+dic        12.84                     48.28                 72.75%
 ene         0.00                      1.37                 49.25%
-feb         0.00                      0.00                 42.37%
-mar         0.00                      0.00                 31.24%
-abr         0.00                      0.00                 16.76%
+feb         0.00                      0.00                 44.68%
+mar         0.00                      0.00                 33.70%
+abr         0.00                      0.00                 17.40%
