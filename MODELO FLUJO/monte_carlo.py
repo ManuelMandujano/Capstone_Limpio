@@ -71,23 +71,23 @@ class MonteCarloEmbalse:
                     pass
     
     def generar_escenario(self):
-        # anos_disponibles = self.anos_disponibles.copy()
+        anos_disponibles = self.anos_disponibles.copy()
         # anos_disponibles = self.anos_mixtos_extremos.copy()
         # anos_disponibles = self.anos_humedos.copy()
         # anos_disponibles = self.anos_secos.copy()
 
         # Para los mixtos extremos 
-        anos_disponibles = []
+        # anos_disponibles = []
         
         # secos
-        num_secos = min(4, len(self.anos_secos))
-        anos_secos_seleccionados = np.random.choice(self.anos_secos, size=num_secos, replace=False)
-        anos_disponibles.extend(anos_secos_seleccionados)
+        #num_secos = min(4, len(self.anos_secos))
+        #anos_secos_seleccionados = np.random.choice(self.anos_secos, size=num_secos, replace=False)
+        #anos_disponibles.extend(anos_secos_seleccionados)
 
         # humedos
-        num_humedos = min(4, len(self.anos_humedos))
-        anos_humedos_seleccionados = np.random.choice(self.anos_humedos, size=num_humedos, replace=False)
-        anos_disponibles.extend(anos_humedos_seleccionados)
+        #num_humedos = min(4, len(self.anos_humedos))
+        #anos_humedos_seleccionados = np.random.choice(self.anos_humedos, size=num_humedos, replace=False)
+        #nos_disponibles.extend(anos_humedos_seleccionados)
 
         escenario = []
         anos_pool = anos_disponibles.copy()
