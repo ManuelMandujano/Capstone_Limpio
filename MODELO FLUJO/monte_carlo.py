@@ -71,7 +71,21 @@ class MonteCarloEmbalse:
                     pass
     
     def generar_escenario(self):
-        anos_disponibles = self.anos_disponibles.copy()
+        #anos_disponibles = self.anos_disponibles.copy()
+        #anos_disponibles = self.anos_mixtos_extremos.copy()
+        #anos_disponibles = self.anos_humedos.copy()
+        #anos_disponibles = self.anos_secos.copy()
+        
+        # Para los mixtos extremos
+        anos_disponibles = []
+        #for i in range(3):
+         #   ano_seleccionado = np.random.choice(self.anos_secos)
+          #  anos_disponibles.append(ano_seleccionado)
+
+        #for i in range(5):
+         #   ano_seleccionado = np.random.choice(self.anos_humedos)
+          #  anos_disponibles.append(ano_seleccionado)
+
         escenario = []
         for _ in range(min(self.duracion_anos, len(anos_disponibles))):
             ano_seleccionado = np.random.choice(anos_disponibles)
@@ -553,8 +567,8 @@ class MonteCarloEmbalse:
 
 
 def main():
-    NUM_SIMULACIONES = 200
-    DURACION_ANOS = 15
+    NUM_SIMULACIONES = 280
+    DURACION_ANOS = 8
     FEA = 1.0
     FEB = 1.0
     
